@@ -22,6 +22,7 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: worker
+          wranglerVersion: "4.160.0"   # actionens standard (3.x) känner inte till [[ratelimits]]
           secrets: |
             GH_TOKEN
         env:
