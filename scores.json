@@ -1,16 +1,1 @@
-[
- {
-  "id": "claudelive02",
-  "name": "TEST",
-  "diff": "hard",
-  "reason": "done",
-  "score": 5000,
-  "right": 42,
-  "wrong": 8,
-  "coins": 2,
-  "time": 2000,
-  "best": 9,
-  "date": "2026-11-10",
-  "ts": 1794322940394
- }
-]
+[]
