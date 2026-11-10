@@ -513,7 +513,7 @@ function buildHall() {
     const led = box(0.02, 0.02, 0.01, glowMat(null, 3, 0x3dff8b)); led.material.transparent = false; led.position.set(0.15, 0.26, 0.165); g.add(led);
     g.rotation.x = 0.15; L.speakers.push({ cone, tw });
   };
-  speaker(-3.2, 2.9, -9.8, 0); speaker(1.8, 2.9, -9.8, 0); speaker(-5.8, 2.9, -1.0, Math.PI / 2); speaker(5.8, 2.9, -6.0, -Math.PI / 2);
+  speaker(-3.2, 2.9, -9.8, 0); speaker(5.15, 2.9, -9.8, 0); speaker(-5.8, 2.9, -1.0, Math.PI / 2); speaker(5.8, 2.9, -6.0, -Math.PI / 2);
   // ---- plants + trash bin (foreground and corners)
   const plant = (x, z, sc) => {
     const g = new THREE.Group(); g.position.set(x, 0, z); g.scale.setScalar(sc); s.add(g);
