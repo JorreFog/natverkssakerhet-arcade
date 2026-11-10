@@ -7,7 +7,7 @@
 // antalet rätt, fel nivå osv.). Fusk som håller sig inom reglerna får tas bort för
 // hand ur scores.json på grenen "highscores".
 
-export const TOTAL = 50, TIME_S = 3600, KEEP = 200;
+export const TOTAL = 50, TIME_S = 3600, KEEP_PER_DIFF = 100;
 export const DIFFS = {
   easy: { coins: Infinity, maxWrong: 30 },
   medium: { coins: 10, maxWrong: 20 },

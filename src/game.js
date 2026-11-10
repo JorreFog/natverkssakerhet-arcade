@@ -301,6 +301,8 @@ async function share() {
   else { m.textContent = 'Kunde inte kopiera automatiskt. Markera texten ovan och kopiera den.'; m.style.color = '#ffd23f'; const r = document.createRange(); r.selectNodeContents($('#share-pre')); const s = getSelection(); s.removeAllRanges(); s.addRange(r); }
 }
 const byRank = (a, b) => b.score - a.score || b.right - a.right || a.time - b.time;
+// De n bästa per nivå, så att ett nivåfilter aldrig blir tomt för att en annan nivå fyllt listan.
+const topPerDiff = (list, n) => { const c = {}; return list.slice().sort(byRank).filter(s => (c[s.diff] = (c[s.diff] || 0) + 1) <= n); };
 function saveBox(L) {
   if (!L.saved) return `<input id="name" maxlength="10" placeholder="DITT NAMN" value="${esc(SET.name)}"><button class="btn yl" id="b-save">SPARA I HIGHSCORE</button>`;
   const st = { sending: ['#2de2e6', 'SKICKAR TILL ONLINE-LISTAN…'], ok: ['#3dff8b', 'SKICKAT! SYNS FÖR ALLA OM EN MINUT'], fail: ['#ff4d5e', 'KOM INTE FRAM TILL ONLINE-LISTAN' + (L.onlineErr ? ': ' + L.onlineErr.toUpperCase() : '')] }[L.online];
@@ -312,8 +314,7 @@ function saveScore() {
   const name = ($('#name').value.trim() || 'ANONYM').toUpperCase().slice(0, 10);
   SET.name = name; saveSet(); L.saved = true; L.name = name; L.ts = Date.now(); L.id = hsId();
   const sc = LS.get('scores', []); sc.push(L);
-  sc.sort(byRank);
-  LS.set('scores', sc.slice(0, 10)); SFX.coin();
+  LS.set('scores', topPerDiff(sc, 10)); SFX.coin();
   hsSend(L);
   renderResult(); openScores(L.ts);
 }
@@ -324,19 +325,21 @@ function openScores(hl) {
 function renderScores(hl) {
   const me = G.last && G.last.saved && G.last.ts === hl ? G.last : null;
   const online = !!HS_API && HS.tab === 'online';
+  const byDiff = s => HS.diff === 'all' || s.diff === HS.diff, dn = HS.diff === 'all' ? '' : DIFFS[HS.diff].n;
   let sc, msg = '';
   if (online) {
     const ids = new Set((HS.list || []).map(s => s.id));
-    sc = (HS.list || []).concat(LS.get('pending', []).filter(p => !ids.has(p.id))).sort(byRank).slice(0, 50);
+    sc = (HS.list || []).concat(LS.get('pending', []).filter(p => !ids.has(p.id))).filter(byDiff).sort(byRank).slice(0, 50);
     if (HS.state === 'error') msg = HS.list ? 'Kunde inte uppdatera listan just nu.' : 'Kunde inte hämta online-listan. Försök igen om en stund.';
     else if (!HS.list) msg = 'LADDAR…';
-  } else sc = LS.get('scores', []);
+  } else sc = LS.get('scores', []).filter(byDiff).sort(byRank).slice(0, 10);
   const isMe = s => me && (online ? s.id === me.id : s.ts === me.ts);
   const rows = sc.map((s, i) => `<tr class="${isMe(s) ? 'me' : ''}"><td>${i + 1}</td><td class="n">${esc(s.name)}${s.reason === 'out' ? ' <span style="color:#ff4d5e" title="Utkastad">✘</span>' : ''}${s.pending ? ' <span style="color:#2de2e6" title="Skickat, syns snart för alla">…</span>' : ''}</td><td>${s.score}</td><td>${s.right}/50</td><td>${DIFFS[s.diff] ? DIFFS[s.diff].n : '?'}</td><td>${s.coins}</td><td>${fmtT(s.time)}</td><td>${esc(s.date)}</td></tr>`).join('');
   const tabs = HS_API ? `<div class="row hs-tabs"><button class="btn sm${online ? ' yl on' : ''}" data-hs="online">ONLINE</button><button class="btn sm${online ? '' : ' yl on'}" data-hs="local">DEN HÄR DATORN</button></div>` : '';
-  const empty = online ? (msg || 'Inga resultat online än. Bli först på listan!') : 'Inga resultat än. Bli först på listan!';
+  const filt = `<div class="row hs-tabs">` + ['all', ...Object.keys(DIFFS)].map(d => `<button class="btn sm${HS.diff === d ? ' yl on' : ''}" data-hsd="${d}">${d === 'all' ? 'ALLA NIVÅER' : DIFFS[d].n}</button>`).join('') + `</div>`;
+  const empty = (online && msg) || (dn ? `Inga resultat på ${dn} än. Bli först!` : online ? 'Inga resultat online än. Bli först på listan!' : 'Inga resultat än. Bli först på listan!');
   const note = 'MYNT = antal mynt som gick till Rickard. ✘ = utkastad av dörrvakten.' + (online ? ' … = skickat, syns snart för alla. Listan visar topp 50 från alla spelare.' : ' Bara resultat från den här webbläsaren.');
-  $('#v-scores').innerHTML = `<h2>HIGHSCORE</h2>` + tabs + (sc.length ? `<table><tr><th>#</th><th>NAMN</th><th>POÄNG</th><th>RÄTT</th><th>NIVÅ</th><th>MYNT</th><th>TID</th><th>DATUM</th></tr>${rows}</table>${msg && msg !== 'LADDAR…' ? `<div class="note" style="margin-top:8px;color:#ffd23f">${msg}</div>` : ''}<div class="note" style="margin-top:8px">${note}</div>` : `<div class="empty">${empty}</div>`) +
+  $('#v-scores').innerHTML = `<h2>HIGHSCORE</h2>` + tabs + filt + (sc.length ? `<table><tr><th>#</th><th>NAMN</th><th>POÄNG</th><th>RÄTT</th><th>NIVÅ</th><th>MYNT</th><th>TID</th><th>DATUM</th></tr>${rows}</table>${msg && msg !== 'LADDAR…' ? `<div class="note" style="margin-top:8px;color:#ffd23f">${msg}</div>` : ''}<div class="note" style="margin-top:8px">${note}</div>` : `<div class="empty">${empty}</div>`) +
     `<div class="row"><button class="btn yl" id="b-again">${G.mode === 'over' ? 'SPELA IGEN' : 'STARTA SPELET'}</button>${G.mode === 'over' ? '<button class="btn" id="b-res">MITT RESULTAT</button>' : ''}<button class="btn mg" id="b-menu">MENY</button></div>`;
 }
 
@@ -345,7 +348,7 @@ function renderScores(hl) {
 // lägga till dem i scores.json på grenen "highscores". Listan hämtas från samma worker.
 // Tom adress = bara lokal highscore, som förut.
 const HS_API = 'https://natverkssakerhet-arcade-highscore.joarfogler.workers.dev';
-const HS = { list: null, state: 'idle', tab: 'online' };
+const HS = { list: null, state: 'idle', tab: 'online', diff: 'all' };
 const hsId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
 function hsLoad() {
   if (!HS_API) return Promise.resolve(null);
@@ -756,6 +759,7 @@ function boot() {
     if (b.dataset.pick) return pickDiff(b.dataset.pick);
     if (b.dataset.tg) { SET[b.dataset.tg] = !SET[b.dataset.tg]; saveSet(); SFX.click(); if (b.dataset.tg === 'music') MUSIC.setEnabled(SET.music); renderSettings(); return hud(); }
     if (b.dataset.vol) { SET.mvol = Math.max(0, Math.min(1, Math.round((SET.mvol + 0.1 * +b.dataset.vol) * 10) / 10)); saveSet(); MUSIC.setVolume(SET.mvol); SFX.click(); return renderSettings(); }
+    if (b.dataset.hsd) { HS.diff = b.dataset.hsd; SFX.click(); return renderScores(G.last && G.last.ts); }
     if (b.dataset.hs) { HS.tab = b.dataset.hs; SFX.click(); return openScores(G.last && G.last.ts); }
     if (b.dataset.reset) { LS.set(b.dataset.reset, b.dataset.reset === 'scores' ? [] : {}); SFX.bad(); b.textContent = 'NOLLSTÄLLT'; b.disabled = true; return; }
     switch (b.id) {
