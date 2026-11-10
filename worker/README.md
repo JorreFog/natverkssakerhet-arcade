@@ -73,7 +73,7 @@ Repot → **Actions** → **Deploy highscore worker** → **Run workflow**. I lo
 Workern deployas om automatiskt när något i `worker/` eller `highscore/validate.mjs`
 ändras på `main`.
 
-> Om deployen klagar på `LIMITER`/`ratelimit`: ta bort `[[unsafe.bindings]]`-blocket
+> Om deployen klagar på `LIMITER`/`ratelimit`: ta bort `[[ratelimits]]`-blocket
 > i `wrangler.toml`. Då försvinner gränsen på 5 resultat per minut, men allt annat fungerar.
 
 ### 6. Koppla spelet till workern
