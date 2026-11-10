@@ -1,0 +1,46 @@
+# Tar emot ett resultat från Cloudflare-workern (repository_dispatch) och lägger
+# till det i scores.json på grenen "highscores". Spelet läser listan därifrån.
+name: Highscore
+
+on:
+  repository_dispatch:
+    types: [highscore]
+
+permissions:
+  contents: write
+
+jobs:
+  add:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Hämta skripten (main)
+        uses: actions/checkout@v4
+        with:
+          path: code
+          sparse-checkout: highscore
+
+      - name: Hämta listan (highscores)
+        uses: actions/checkout@v4
+        with:
+          ref: highscores
+          path: data
+
+      - name: Lägg till resultatet
+        working-directory: data
+        env:
+          # Via env, inte direkt i skriptet, så att namnet aldrig tolkas som kod.
+          ENTRY: ${{ toJSON(github.event.client_payload.entry) }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # Flera kan spara samtidigt: hämta senaste listan och försök igen om pushen nekas.
+          for try in 1 2 3 4 5 6 7 8; do
+            git fetch -q origin highscores && git reset -q --hard origin/highscores
+            msg=$(node ../code/highscore/add-score.mjs scores.json) || exit 1
+            if git diff --quiet; then echo "$msg"; exit 0; fi
+            git commit -q -am "$msg"
+            if git push -q origin HEAD:highscores; then echo "$msg"; exit 0; fi
+            sleep $((RANDOM % 6 + 2))
+          done
+          echo "Kunde inte pusha efter 8 försök"; exit 1

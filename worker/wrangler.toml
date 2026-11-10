@@ -1,0 +1,19 @@
+name = "natverkssakerhet-arcade-highscore"
+main = "src/index.mjs"
+compatibility_date = "2024-11-01"
+
+[vars]
+REPO = "JorreFog/natverkssakerhet-arcade"
+BRANCH = "highscores"
+# Sidor som får anropa workern från webbläsaren. "null" = spelet öppnat som lokal fil.
+ALLOWED_ORIGINS = "https://jorrefog.github.io,null"
+
+# Hemlighet (sätts av deploy-workflowet, aldrig här):
+#   GH_TOKEN  fine-grained token med Contents: Read and write på bara det här repot
+
+# Max 5 sparade resultat per minut och IP-adress.
+[[unsafe.bindings]]
+name = "LIMITER"
+type = "ratelimit"
+namespace_id = "1001"
+simple = { limit = 5, period = 60 }

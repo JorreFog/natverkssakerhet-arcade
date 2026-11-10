@@ -127,7 +127,9 @@ h3{font-family:'PS2P';font-size:14px;color:var(--cy);margin:16px 0 8px;font-weig
 .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 .stats div{background:#0d1838;border:2px solid #2b3f7d;padding:7px 4px;text-align:center;font-size:30px;color:#fff}
 .stats div span{display:block;font-family:'PS2P';font-size:9px;color:var(--dim);margin-bottom:5px}
-.namerow{display:flex;gap:10px;align-items:center;margin-top:12px;justify-content:center}
+.namerow{display:flex;gap:10px;align-items:center;margin-top:12px;justify-content:center;flex-wrap:wrap}
+.namerow .hs-st{font-size:11px;flex-basis:100%;text-align:center;line-height:1.6}
+.hs-tabs{margin:0 0 12px} .hs-tabs .btn.on{background:rgba(255,210,63,.15)}
 .namerow input{font-family:'PS2P';font-size:17px;width:260px;padding:12px;background:#050914;border:3px solid var(--yl);color:#fff;text-transform:uppercase;user-select:text}
 #sharebox{margin-top:12px;border:3px solid #5865f2;background:#1e1f3a;padding:10px 14px}
 #sharebox pre{margin:0;font-family:'VT';font-size:24px;line-height:1.15;color:#e6e8ff;white-space:pre-wrap;user-select:text}
@@ -5026,7 +5028,7 @@ function renderResult() {
       <div><span>POÄNG</span>${L.score}</div><div><span>RÄTT AV 50</span>${L.right} (${pct}%)</div><div><span>FEL</span>${L.wrong}/${L.maxWrong}</div><div><span>TID</span>${fmtT(L.time)}</div>
       <div><span>NIVÅ</span>${DIFFS[L.diff].n}</div><div><span>MYNT ANVÄNDA</span>${L.coins}</div><div><span>LÄNGSTA SVIT</span>${L.best}</div><div><span>BESVARADE</span>${L.n}/50</div>
     </div>
-    <div class="namerow" id="savebox">${L.saved ? '<span class="ps" style="font-size:13px;color:#3dff8b">SPARAT I HIGHSCORE SOM ' + esc(L.name) + '</span>' : `<input id="name" maxlength="10" placeholder="DITT NAMN" value="${esc(SET.name)}"><button class="btn yl" id="b-save">SPARA I HIGHSCORE</button>`}</div>
+    <div class="namerow" id="savebox">${saveBox(L)}</div>
     <div class="row"><button class="btn dc" id="b-share">DELA PÅ DISCORD</button><button class="btn yl" id="b-again">SPELA IGEN</button><button class="btn" id="b-scores2">HIGHSCORE</button><button class="btn mg" id="b-menu">MENY</button></div>
     <div id="sharebox"><pre id="share-pre">${esc(shareText(L))}</pre><div class="note" id="share-msg">Tryck DELA PÅ DISCORD och klistra in i klassens kanal med Ctrl+V.</div></div>
     <h3>RESULTAT PER OMRÅDE</h3>${areas || '<div class="note">Inga besvarade frågor.</div>'}
@@ -5041,20 +5043,82 @@ async function share() {
   if (ok) { m.textContent = 'KOPIERAT! Klistra in i Discord med Ctrl+V.'; m.style.color = '#3dff8b'; SFX.coin(); }
   else { m.textContent = 'Kunde inte kopiera automatiskt. Markera texten ovan och kopiera den.'; m.style.color = '#ffd23f'; const r = document.createRange(); r.selectNodeContents($('#share-pre')); const s = getSelection(); s.removeAllRanges(); s.addRange(r); }
 }
+const byRank = (a, b) => b.score - a.score || b.right - a.right || a.time - b.time;
+function saveBox(L) {
+  if (!L.saved) return `<input id="name" maxlength="10" placeholder="DITT NAMN" value="${esc(SET.name)}"><button class="btn yl" id="b-save">SPARA I HIGHSCORE</button>`;
+  const st = { sending: ['#2de2e6', 'SKICKAR TILL ONLINE-LISTAN…'], ok: ['#3dff8b', 'SKICKAT! SYNS FÖR ALLA OM EN MINUT'], fail: ['#ff4d5e', 'KOM INTE FRAM TILL ONLINE-LISTAN' + (L.onlineErr ? ': ' + L.onlineErr.toUpperCase() : '')] }[L.online];
+  return '<span class="ps" style="font-size:13px;color:#3dff8b">SPARAT I HIGHSCORE SOM ' + esc(L.name) + '</span>' +
+    (st ? `<span class="ps hs-st" style="color:${st[0]}">${esc(st[1])}</span>` + (L.online === 'fail' ? '<button class="btn sm" id="b-resend">FÖRSÖK IGEN</button>' : '') : '');
+}
 function saveScore() {
   const L = G.last; if (!L || L.saved) return;
   const name = ($('#name').value.trim() || 'ANONYM').toUpperCase().slice(0, 10);
-  SET.name = name; saveSet(); L.saved = true; L.name = name; L.ts = Date.now();
+  SET.name = name; saveSet(); L.saved = true; L.name = name; L.ts = Date.now(); L.id = hsId();
   const sc = LS.get('scores', []); sc.push(L);
-  sc.sort((a, b) => b.score - a.score || b.right - a.right || a.time - b.time);
+  sc.sort(byRank);
   LS.set('scores', sc.slice(0, 10)); SFX.coin();
-  renderResult(); renderScores(L.ts); view('scores');
+  hsSend(L);
+  renderResult(); openScores(L.ts);
+}
+function openScores(hl) {
+  renderScores(hl); view('scores');
+  if (HS_API) hsLoad().then(() => { if ($('#v-scores').classList.contains('on')) renderScores(hl); });
 }
 function renderScores(hl) {
-  const sc = LS.get('scores', []);
-  const rows = sc.map((s, i) => `<tr class="${s.ts === hl ? 'me' : ''}"><td>${i + 1}</td><td class="n">${esc(s.name)}${s.reason === 'out' ? ' <span style="color:#ff4d5e" title="Utkastad">✘</span>' : ''}</td><td>${s.score}</td><td>${s.right}/50</td><td>${DIFFS[s.diff] ? DIFFS[s.diff].n : '?'}</td><td>${s.coins}</td><td>${fmtT(s.time)}</td><td>${esc(s.date)}</td></tr>`).join('');
-  $('#v-scores').innerHTML = `<h2>HIGHSCORE</h2>` + (sc.length ? `<table><tr><th>#</th><th>NAMN</th><th>POÄNG</th><th>RÄTT</th><th>NIVÅ</th><th>MYNT</th><th>TID</th><th>DATUM</th></tr>${rows}</table><div class="note" style="margin-top:8px">MYNT = antal mynt som gick till Rickard. ✘ = utkastad av dörrvakten.</div>` : `<div class="empty">Inga resultat än. Bli först på listan!</div>`) +
+  const me = G.last && G.last.saved && G.last.ts === hl ? G.last : null;
+  const online = !!HS_API && HS.tab === 'online';
+  let sc, msg = '';
+  if (online) {
+    const ids = new Set((HS.list || []).map(s => s.id));
+    sc = (HS.list || []).concat(LS.get('pending', []).filter(p => !ids.has(p.id))).sort(byRank).slice(0, 50);
+    if (HS.state === 'error') msg = HS.list ? 'Kunde inte uppdatera listan just nu.' : 'Kunde inte hämta online-listan. Försök igen om en stund.';
+    else if (!HS.list) msg = 'LADDAR…';
+  } else sc = LS.get('scores', []);
+  const isMe = s => me && (online ? s.id === me.id : s.ts === me.ts);
+  const rows = sc.map((s, i) => `<tr class="${isMe(s) ? 'me' : ''}"><td>${i + 1}</td><td class="n">${esc(s.name)}${s.reason === 'out' ? ' <span style="color:#ff4d5e" title="Utkastad">✘</span>' : ''}${s.pending ? ' <span style="color:#2de2e6" title="Skickat, syns snart för alla">…</span>' : ''}</td><td>${s.score}</td><td>${s.right}/50</td><td>${DIFFS[s.diff] ? DIFFS[s.diff].n : '?'}</td><td>${s.coins}</td><td>${fmtT(s.time)}</td><td>${esc(s.date)}</td></tr>`).join('');
+  const tabs = HS_API ? `<div class="row hs-tabs"><button class="btn sm${online ? ' yl on' : ''}" data-hs="online">ONLINE</button><button class="btn sm${online ? '' : ' yl on'}" data-hs="local">DEN HÄR DATORN</button></div>` : '';
+  const empty = online ? (msg || 'Inga resultat online än. Bli först på listan!') : 'Inga resultat än. Bli först på listan!';
+  const note = 'MYNT = antal mynt som gick till Rickard. ✘ = utkastad av dörrvakten.' + (online ? ' … = skickat, syns snart för alla. Listan visar topp 50 från alla spelare.' : ' Bara resultat från den här webbläsaren.');
+  $('#v-scores').innerHTML = `<h2>HIGHSCORE</h2>` + tabs + (sc.length ? `<table><tr><th>#</th><th>NAMN</th><th>POÄNG</th><th>RÄTT</th><th>NIVÅ</th><th>MYNT</th><th>TID</th><th>DATUM</th></tr>${rows}</table>${msg && msg !== 'LADDAR…' ? `<div class="note" style="margin-top:8px;color:#ffd23f">${msg}</div>` : ''}<div class="note" style="margin-top:8px">${note}</div>` : `<div class="empty">${empty}</div>`) +
     `<div class="row"><button class="btn yl" id="b-again">${G.mode === 'over' ? 'SPELA IGEN' : 'STARTA SPELET'}</button>${G.mode === 'over' ? '<button class="btn" id="b-res">MITT RESULTAT</button>' : ''}<button class="btn mg" id="b-menu">MENY</button></div>`;
+}
+
+// ---------- online highscore ----------
+// Resultat skickas till en Cloudflare-worker (worker/ i repot), som låter en GitHub Action
+// lägga till dem i scores.json på grenen "highscores". Listan hämtas från samma worker.
+// Tom adress = bara lokal highscore, som förut.
+const HS_API = '';
+const HS = { list: null, state: 'idle', tab: 'online' };
+const hsId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+function hsLoad() {
+  if (!HS_API) return Promise.resolve(null);
+  if (HS.busy) return HS.busy;
+  HS.state = 'loading';
+  return HS.busy = fetch(HS_API + '/scores', { cache: 'no-store' })
+    .then(r => r.ok ? r.json() : Promise.reject(r.status))
+    .then(list => { HS.list = Array.isArray(list) ? list : []; HS.state = 'ok'; hsPrune(); })
+    .catch(() => { HS.state = 'error'; })
+    .then(() => { HS.busy = null; return HS.list; });
+}
+// Egna skickade resultat visas direkt (med …) tills GitHub Action har lagt in dem i listan.
+function hsPrune() {
+  const ids = new Set((HS.list || []).map(s => s.id));
+  LS.set('pending', LS.get('pending', []).filter(p => !ids.has(p.id) && Date.now() - p.sent < 15 * 60e3));
+}
+function hsSend(L) {
+  if (!HS_API || /#t=/.test(location.hash)) return;   // testlägen skickar aldrig
+  const body = { id: L.id, name: L.name, score: L.score, right: L.right, wrong: L.wrong, diff: L.diff, coins: L.coins, time: L.time, reason: L.reason, best: L.best };
+  const show = () => { const b = $('#savebox'); if (b && G.last === L) b.innerHTML = saveBox(L); };
+  L.online = 'sending'; L.onlineErr = ''; show();
+  fetch(HS_API + '/scores', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    .then(r => r.json().catch(() => ({})).then(j => { if (!r.ok) throw new Error(j.error || 'fel ' + r.status); }))
+    .then(() => {
+      L.online = 'ok';
+      const p = LS.get('pending', []); p.push(Object.assign({}, body, { date: L.date, sent: Date.now(), pending: true })); LS.set('pending', p);
+      if ($('#v-scores').classList.contains('on')) renderScores(L.ts);
+    })
+    .catch(e => { L.online = 'fail'; L.onlineErr = e instanceof TypeError ? 'ingen anslutning' : String(e.message || e); })
+    .then(show);
 }
 // ---------- title screen: animated pixel logo, arcade menu, score ticker ----------
 const LG = { c: null, x: null, mask: null, sel: 0 };
@@ -5119,9 +5183,9 @@ const TINT = new Map();
 function tintC(sp, col) { const k = col + sp.w + 'x' + sp.h + (sp._id || (sp._id = Math.random())); if (TINT.has(k)) return TINT.get(k); const o = SPR.mk(sp.w, sp.h); o.x.drawImage(sp.c, 0, 0); o.x.globalCompositeOperation = 'source-in'; o.x.fillStyle = col; o.x.fillRect(0, 0, o.w, o.h); TINT.set(k, o.c); return o.c; }
 function titleSel(i) { const it = [...document.querySelectorAll('.titem')]; LG.sel = (i + it.length) % it.length; it.forEach((e, j) => e.classList.toggle('sel', j === LG.sel)); }
 function fillTicker() {
-  const sc = LS.get('scores', []);
+  const on = HS.list && HS.list.length, sc = on ? HS.list : LS.get('scores', []);
   const parts = sc.length ? sc.slice(0, 10).map((s, i) => `${i + 1}. ${s.name} ${s.score} (${DIFFS[s.diff] ? DIFFS[s.diff].n : '?'})`) : ['INGA REKORD ÄN', 'BLI FÖRST PÅ LISTAN'];
-  $('#ticker-in').textContent = '★ HIGHSCORE ★   ' + parts.join('   ·   ') + '   ★ PLUGGA SMART ★   FIREWALL · IDS · IPS · NAT · ZERO TRUST · SIEM · SOAR';
+  $('#ticker-in').textContent = (on ? '★ HIGHSCORE ONLINE ★   ' : '★ HIGHSCORE ★   ') + parts.join('   ·   ') + '   ★ PLUGGA SMART ★   FIREWALL · IDS · IPS · NAT · ZERO TRUST · SIEM · SOAR';
 }
 
 // ---------- tutorial (first visit, and from the menu) ----------
@@ -5435,15 +5499,17 @@ function boot() {
     if (b.dataset.pick) return pickDiff(b.dataset.pick);
     if (b.dataset.tg) { SET[b.dataset.tg] = !SET[b.dataset.tg]; saveSet(); SFX.click(); if (b.dataset.tg === 'music') MUSIC.setEnabled(SET.music); renderSettings(); return hud(); }
     if (b.dataset.vol) { SET.mvol = Math.max(0, Math.min(1, Math.round((SET.mvol + 0.1 * +b.dataset.vol) * 10) / 10)); saveSet(); MUSIC.setVolume(SET.mvol); SFX.click(); return renderSettings(); }
+    if (b.dataset.hs) { HS.tab = b.dataset.hs; SFX.click(); return openScores(G.last && G.last.ts); }
     if (b.dataset.reset) { LS.set(b.dataset.reset, b.dataset.reset === 'scores' ? [] : {}); SFX.bad(); b.textContent = 'NOLLSTÄLLT'; b.disabled = true; return; }
     switch (b.id) {
       case 'b-start': case 'b-again': return showDiff();
-      case 'b-scores': case 'b-scores2': SFX.click(); renderScores(G.last && G.last.ts); return view('scores');
+      case 'b-scores': case 'b-scores2': SFX.click(); return openScores(G.last && G.last.ts);
       case 'b-settings': SFX.click(); renderSettings(); return view('settings');
       case 'b-menu': SFX.click(); return toTitle();
       case 'b-res': SFX.click(); return view('result');
       case 'b-next': return next();
       case 'b-save': return saveScore();
+      case 'b-resend': SFX.click(); return hsSend(G.last);
       case 'b-share': return share();
       case 'b-sound': SET.sound = !SET.sound; saveSet(); SFX.click(); return hud();
       case 'b-music': SET.music = !SET.music; saveSet(); MUSIC.setEnabled(SET.music); return hud();
@@ -5500,6 +5566,7 @@ function boot() {
   });
   document.querySelectorAll('.titem').forEach((e, i) => e.addEventListener('mouseenter', () => titleSel(i)));
   fillTicker(); titleSel(0);
+  hsLoad().then(() => { if (G.mode === 'title') fillTicker(); });
   hud();
   document.body.classList.add('ready');
   requestAnimationFrame(frame);
@@ -5539,7 +5606,7 @@ function testHook() {
     if (m[1] === 'cheerdemo') every(2400, 12, () => step(true));
     if (m[1] === 'crowddemo') { World.forceGather(['volt', 'pelle']); every(1900, 16, () => step(true)); }
     if (m[1] === 'cameodemo') { World.forceGather(['volt', 'pelle']); every(2600, 10, () => step(true)); }
-    if (m[1] === 'scores') { renderScores(); view('scores'); }
+    if (m[1] === 'scores') openScores();
     if (m[1] === 'settings') { renderSettings(); view('settings'); }
     SET.sound = was;
   };

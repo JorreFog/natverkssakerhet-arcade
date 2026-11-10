@@ -1,0 +1,28 @@
+# Deployar highscore-workern till Cloudflare. Körs när workern eller valideringen
+# ändras på main, eller för hand under Actions → "Deploy highscore worker" → Run workflow.
+name: Deploy highscore worker
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [worker/**, highscore/validate.mjs]
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: worker
+          secrets: |
+            GH_TOKEN
+        env:
+          GH_TOKEN: ${{ secrets.HIGHSCORE_GH_TOKEN }}

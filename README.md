@@ -25,7 +25,7 @@ Ett pluggspel inför tentan i Nätverkssäkerhet: ett 3D-arkadspel i pixelgrafik
 
 **Styrning:** mus, eller piltangenter + Enter. **1–4** / **A–D** svarar, **H** Rickard, **M** ljudeffekter, **N** musik.
 
-Highscore och statistik sparas bara i din egen webbläsare.
+Highscore sparas både i din webbläsare och på en gemensam online-lista med alla spelares resultat. Frågestatistiken sparas bara i din webbläsare. Hur online-listan fungerar och sätts upp står i [`worker/README.md`](worker/README.md).
 
 ## Bygga
 
@@ -39,6 +39,8 @@ Spelet är en enda fristående fil, `index.html`. Källorna ligger i `src/`:
 | `game.js` | Spellogiken |
 | `audio.js` | Musiken genom hallens högtalare |
 | `template.html` | Sidan |
+
+Online-highscore: `highscore/` (kontroll av resultat, används av både worker och GitHub Action), `worker/` (Cloudflare Worker) och `.github/workflows/`.
 
 ```sh
 cd src
