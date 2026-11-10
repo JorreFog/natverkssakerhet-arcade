@@ -1,1 +1,16 @@
-[]
+[
+ {
+  "id": "mwauixtznojm0a2i",
+  "name": "JOAR",
+  "diff": "easy",
+  "reason": "done",
+  "score": 5240,
+  "right": 40,
+  "wrong": 10,
+  "coins": 0,
+  "time": 1021,
+  "best": 16,
+  "date": "2026-11-10",
+  "ts": 1794324588686
+ }
+]
