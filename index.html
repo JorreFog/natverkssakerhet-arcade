@@ -5087,7 +5087,7 @@ function renderScores(hl) {
 // Resultat skickas till en Cloudflare-worker (worker/ i repot), som låter en GitHub Action
 // lägga till dem i scores.json på grenen "highscores". Listan hämtas från samma worker.
 // Tom adress = bara lokal highscore, som förut.
-const HS_API = '';
+const HS_API = 'https://natverkssakerhet-arcade-highscore.joarfogler.workers.dev';
 const HS = { list: null, state: 'idle', tab: 'online' };
 const hsId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
 function hsLoad() {
