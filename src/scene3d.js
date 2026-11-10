@@ -567,8 +567,9 @@ function buildHall() {
   L.spotDoor = spot(0xa8c8ff, 18, -1.9, 3.5, -2.8, -1.9, 0, -3.5, 0.42, true);
   L.spotMid = spot(0xffb8e8, 14, 1.4, 3.5, -5.0, 1.4, 0, -5.4, 0.45, true);
   // ---- hang-out and gather spots for the crowd
-  SPOTS.hang.push({ x: -3.6, z: -7.0 }, { x: -1.0, z: -7.4 }, { x: 3.2, z: -6.6 }, { x: -3.8, z: -3.4 }, { x: 3.4, z: -2.6 }, { x: -0.4, z: -3.6 }, { x: 2.6, z: -3.9 });
-  SPOTS.gather.push({ x: -1.55, z: -1.75 }, { x: 2.75, z: -2.6 }, { x: -2.05, z: -2.5 }, { x: 2.55, z: -1.55 }, { x: -1.7, z: -3.2 }, { x: 3.2, z: -3.4 }, { x: -2.6, z: -1.7 }, { x: -2.95, z: -2.8 });
+  SPOTS.hang.push({ x: -3.6, z: -7.0 }, { x: -1.0, z: -7.4 }, { x: 3.2, z: -6.6 }, { x: -3.8, z: -3.4 }, { x: 3.4, z: -2.6 }, { x: -0.4, z: -3.6 }, { x: 2.6, z: -3.9 }, { x: -2.6, z: -6.2 }, { x: 0.2, z: -6.9 }, { x: 4.2, z: -5.0 }, { x: -4.3, z: -5.3 });
+  SPOTS.gather.push({ x: -1.55, z: -1.75 }, { x: 2.75, z: -2.6 }, { x: -2.05, z: -2.5 }, { x: 2.55, z: -1.55 }, { x: -1.7, z: -3.2 }, { x: 3.2, z: -3.4 }, { x: -2.6, z: -1.7 }, { x: -2.95, z: -2.8 },
+    { x: 3.55, z: -2.0 }, { x: 2.2, z: -3.6 }, { x: -3.5, z: -2.15 }, { x: -2.4, z: -3.75 }, { x: 3.9, z: -3.1 }, { x: -3.6, z: -3.4 });
   OBST.push([-2.75, -4.1, -1.95, -3.3]);   // doorman's spot
   return s;
 }
@@ -611,7 +612,7 @@ function buildCharacters(s) {
   C.rkS = P.mk(136, 252); C.rk = spriteMesh(C.rkS, 136 * 0.0074, 252 * 0.0074, 4 * 0.0074);
   C.rkPivot = new THREE.Group(); C.rkPivot.position.set(1.98, 0, -2.15); C.rkPivot.add(C.rk); C.rk.rotation.z = 0.1; s.add(C.rkPivot);
   // crowd
-  const n = 7;
+  const n = 11;
   for (let i = 0; i < n; i++) {
     const P0 = P.person(i * 7 + 3), cs = P.mk(48, 100), m = spriteMesh(cs, 48 * 0.0185 * P0.height, 100 * 0.0185 * P0.height, 3 * 0.0185 * P0.height);
     s.add(m);
@@ -1047,7 +1048,11 @@ W.setMirror = (c) => {
 };
 W.mirrorDirty = () => { if (W.mirrorTex) W.mirrorTex.needsUpdate = true; };
 // demo/test helper: send the named crowd members (e.g. the cameos) to watch the player
-W.forceGather = (names) => { for (const n of C.npcs) if (n.custom && names.includes(n.custom) && n.active) { const sp = freeSpot(SPOTS.gather, n); if (sp) { n.gathered = true; goTo(n, sp, 'gather'); } } };
+W.forceGather = (names) => {
+  const front = SPOTS.gather.filter(p => p.x < 0).sort((a, b) => Math.hypot(a.x + 1.7, a.z + 2.0) - Math.hypot(b.x + 1.7, b.z + 2.0));
+  let k = 0;
+  for (const n of C.npcs) if (n.custom && names.includes(n.custom) && n.active) { const sp = front.find(p => !p.busy); if (sp) { n.gathered = true; goTo(n, sp, 'gather'); k++; } }
+};
 const AF = { rc: new THREE.Raycaster(), list: null };
 function autoFocus(def) {
   if (CAM.mode === 'rickard') return def;

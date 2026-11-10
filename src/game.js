@@ -655,7 +655,9 @@ function frame(ms) {
   const bl = Math.min(1, Math.round(World.screenBlur() / 6 * 10) / 10);
   if (bl !== lastBlur) { lastBlur = bl; $('#defocus').style.opacity = (bl * 0.55).toFixed(2); }
   if (!World.isOutside()) {
-    placeAt($('#bubble'), World.headPos('doorman'), -8);
+    const dmh = World.headPos('doorman'); placeAt($('#bubble'), dmh, -8);
+    // in director mode a bubble only shows when its speaker is in the shot
+    $('#bubble').style.visibility = document.body.classList.contains('cine') && (dmh.x < 0 || dmh.x > innerWidth || dmh.y < 0 || dmh.y > innerHeight || !dmh.vis) ? 'hidden' : '';
     placeAt($('#rick-tag'), World.headPos('rickard'), -10);
     $('#rick-tag').classList.toggle('hide', !(G.mode === 'play' && !G.answered && !G.hint) || dlgOpen);
     const vs = World.visitorSay(), vb = $('#vbubble');
@@ -778,7 +780,7 @@ function testHook() {
   const was = SET.sound; SET.sound = false; const n = +m[2] || 0;
   const d = /diff=([a-z]+)/.exec(location.hash); if (d && DIFFS[d[1]]) SET.diff = d[1];
   const run = () => {
-    if (!['title', 'scores', 'settings', 'tut'].includes(m[1])) startGame(/cameo/.test(m[1]) ? { volt: true, pelle: true } : null);
+    if (!['title', 'scores', 'settings', 'tut'].includes(m[1])) startGame(/cameo|crowd/.test(m[1]) ? { volt: true, pelle: true } : null);
     const wrong = (N) => { for (let i = 0; i < N; i++) { answer((G.order.indexOf(0) + 1) % 4); if (G.mode === 'play' && i < N - 1) next(); } };
     const right = (N) => { for (let i = 0; i < N; i++) { answer(G.order.indexOf(0)); if (i < N - 1) next(); } };
     if (m[1] === 'wrong') wrong(n);
@@ -794,6 +796,7 @@ function testHook() {
     const step = (good) => { if (G.answered) next(); setTimeout(() => answer(good ? G.order.indexOf(0) : (G.order.indexOf(0) + 1) % 4), 500); };
     if (m[1] === 'laughdemo') every(2600, Math.min(G.maxWrong - 1, 9), () => step(false));
     if (m[1] === 'cheerdemo') every(2400, 12, () => step(true));
+    if (m[1] === 'crowddemo') { World.forceGather(['volt', 'pelle']); every(1900, 16, () => step(true)); }
     if (m[1] === 'cameodemo') { World.forceGather(['volt', 'pelle']); every(2600, 10, () => step(true)); }
     if (m[1] === 'scores') { renderScores(); view('scores'); }
     if (m[1] === 'settings') { renderSettings(); view('settings'); }
