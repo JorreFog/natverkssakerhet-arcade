@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Nätverkssäkerhet Arcade</title>
+<style>
+@font-face{font-family:'PS2P';src:url(data:font/woff2;base64,__PS2P__) format('woff2');font-display:block}
+@font-face{font-family:'VT';src:url(data:font/woff2;base64,__VT323__) format('woff2');font-display:block}
+:root{--cy:#2de2e6;--mg:#ff3caa;--yl:#ffd23f;--gr:#3dff8b;--rd:#ff4d5e;--ink:#d9f6ff;--dim:#7f95c9;--k:1}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:#07040e;overflow:hidden;font-family:'VT',monospace;color:var(--ink);user-select:none}
+body.hand{cursor:pointer}
+button{font:inherit;color:inherit;cursor:pointer}
+canvas{position:fixed;display:block;image-rendering:pixelated;image-rendering:crisp-edges}
+#scene{z-index:0}
+#fx{pointer-events:none;z-index:6}
+.ps{font-family:'PS2P',monospace}
+#loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;font-family:'PS2P';font-size:16px;color:var(--yl);background:#07040e;z-index:50;transition:opacity .6s}
+body.ready #loading{opacity:0;pointer-events:none}
+#nogl{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;font-family:'PS2P';font-size:14px;line-height:1.8;color:#fff;background:#07040e;z-index:60;padding:40px}
+
+/* ---------- CRT screen, mapped onto the 3D cabinet with matrix3d ---------- */
+#screen{position:fixed;left:0;top:0;width:870px;height:600px;transform-origin:0 0;border-radius:18px;overflow:hidden;z-index:2;
+  background:radial-gradient(ellipse at 50% 45%,#0e1a38 0%,#080d1f 65%,#03050c 100%);font-size:28px;line-height:1.08;
+  box-shadow:inset 0 0 0 3px rgba(0,0,0,.6)}
+#screen::after{content:"";position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(to bottom,rgba(0,0,0,0) 0 3px,rgba(0,0,0,.2) 3px 6px),radial-gradient(ellipse at 30% 20%,rgba(255,255,255,.07),rgba(255,255,255,0) 45%);box-shadow:inset 0 0 90px rgba(0,0,0,.8);z-index:50}
+@keyframes flk{0%,100%{opacity:1}48%{opacity:.93}50%{opacity:.8}52%{opacity:.95}}
+body.nocrt #screen::after{background:radial-gradient(ellipse at 30% 20%,rgba(255,255,255,.05),rgba(255,255,255,0) 45%)}
+#screen .inner{position:absolute;inset:0}
+#screen.glitch .inner{animation:gl .45s steps(6)}
+@keyframes gl{0%{transform:translate(0,0);filter:none}17%{transform:translate(-10px,3px) skewX(2deg);filter:hue-rotate(60deg) saturate(2)}34%{transform:translate(9px,-4px) skewX(-3deg)}51%{transform:translate(-6px,2px);filter:invert(.15)}68%{transform:translate(5px,-2px) skewX(1deg)}85%{transform:translate(-2px,1px)}100%{transform:none;filter:none}}
+#screen.pop .inner{animation:pp .35s}
+@keyframes pp{0%{transform:scale(1)}40%{transform:scale(1.018)}100%{transform:scale(1)}}
+#screen.off .inner{animation:off .5s forwards}
+#screen.off{background:#020306}
+@keyframes off{0%{transform:scale(1,1);filter:brightness(1)}40%{transform:scale(1,.006);filter:brightness(4)}80%{transform:scale(.2,.006);filter:brightness(6)}100%{transform:scale(0,0);opacity:0}}
+body.outside #screen,body.outside .hud,body.outside #rick-tag,body.outside #bubble,body.outside #vbubble{display:none}
+body.talking #screen{pointer-events:none}
+#screen{transition:opacity .18s}
+#screen.away{opacity:0;pointer-events:none}
+#defocus{position:absolute;inset:0;z-index:49;pointer-events:none;opacity:0;background:radial-gradient(ellipse at 50% 50%,rgba(20,24,48,.55),rgba(8,10,24,.9));transition:opacity .25s}
+#tint{position:absolute;inset:0;pointer-events:none;opacity:0;z-index:40}
+#tint.go{animation:tn .7s}
+@keyframes tn{0%{opacity:.5}100%{opacity:0}}
+.view{position:absolute;inset:0;padding:20px 26px;display:none;flex-direction:column}
+.view.on{display:flex}
+.scroll{overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--cy) #0a1228}
+
+/* ---------- buttons ---------- */
+.btn{font-family:'PS2P';font-size:17px;padding:14px 18px;background:#12204a;border:3px solid var(--cy);color:#e8feff;box-shadow:5px 5px 0 #05112b;text-shadow:2px 2px 0 #000;transition:transform .06s}
+.btn:hover,.btn:focus-visible{background:#1c3170;transform:translate(-2px,-2px);box-shadow:7px 7px 0 #05112b;outline:none}
+.btn:active{transform:translate(3px,3px);box-shadow:2px 2px 0 #05112b}
+.btn.mg{border-color:var(--mg)} .btn.yl{border-color:var(--yl);color:#fff6cf} .btn.sm{font-size:12px;padding:9px 11px}
+.btn.dc{border-color:#7c8cff;background:#2a2f7a;color:#eef}
+.btn.sel{background:var(--yl);color:#1a1200;text-shadow:none;border-color:#fff}
+
+/* ---------- title ---------- */
+#v-title{align-items:center;text-align:center;padding:0 0 48px;gap:6px;background:#06030f}
+#logo{position:relative;width:870px;height:504px;image-rendering:pixelated;image-rendering:crisp-edges;display:block;margin:0 0 -172px;flex:none}
+.tmenu{display:flex;flex-direction:column;gap:6px;align-items:stretch;position:relative;z-index:2}
+.titem{display:flex;align-items:center;gap:14px;font-family:'PS2P';font-size:20px;padding:5px 26px 5px 14px;background:none;border:none;color:#9fb6ff;text-shadow:3px 3px 0 #000;text-align:left;letter-spacing:1px}
+.titem i{font-style:normal;color:var(--yl);visibility:hidden;font-size:18px;animation:nud .5s steps(2) infinite}
+.titem.sel{color:#fff;text-shadow:3px 3px 0 #7a1d55,0 0 14px rgba(255,60,170,.8)}
+.titem.sel i{visibility:visible}
+.titem:focus{outline:none}
+@keyframes nud{50%{transform:translateX(5px)}}
+.credit{font-family:'PS2P';font-size:12px;color:var(--dim);margin-top:8px;position:relative;z-index:2}
+.blink{animation:bl 1s steps(2) infinite;color:var(--gr)}
+@keyframes bl{50%{opacity:0}}
+.ticker{position:absolute;left:0;right:0;bottom:0;overflow:hidden;white-space:nowrap;border-top:3px solid #2a1d4d;background:#0b0618;padding:8px 0 10px;z-index:2}
+#ticker-in{display:inline-block;font-family:'PS2P';font-size:14px;color:var(--cy);padding-left:100%;animation:tick 26s linear infinite}
+@keyframes tick{to{transform:translateX(-100%)}}
+/* ---------- quiz ---------- */
+#v-quiz{padding:14px 22px 14px}
+.qh{display:flex;justify-content:space-between;align-items:center;font-family:'PS2P';font-size:15px;color:var(--cy);gap:10px}
+.qh #q-time{color:var(--gr)} .qh #q-time.low{color:var(--rd);animation:bl .6s steps(2) infinite}
+.qh #q-score{color:var(--yl)}
+#q-prog{display:flex;gap:3px;margin:9px 0 8px}
+#q-prog i{flex:1;height:9px;background:#16244d}
+#q-prog i.ok{background:var(--gr)} #q-prog i.no{background:var(--rd)} #q-prog i.cur{background:#fff;animation:bl .7s steps(2) infinite}
+#q-cat{font-family:'PS2P';font-size:11px;color:#0a1022;background:var(--mg);padding:5px 9px;align-self:flex-start;margin-bottom:8px}
+#q-text{font-size:38px;line-height:1.02;color:#fff;text-shadow:0 0 9px rgba(120,200,255,.55);margin-bottom:11px}
+#q-text.long{font-size:31px} #q-text.xl{font-size:25px}
+#q-ans{display:flex;flex-direction:column;gap:8px}
+.ans{display:flex;align-items:center;gap:13px;text-align:left;background:#0d1838;border:3px solid #2b3f7d;padding:7px 12px 7px 8px;font-size:30px;line-height:1.02;min-height:57px;max-height:140px;overflow:hidden;transition:max-height .3s,min-height .3s,opacity .25s,padding .3s,margin .3s,border-width .3s,transform .08s}
+.ans b{flex:none;width:42px;height:42px;display:flex;align-items:center;justify-content:center;font-family:'PS2P';font-size:18px;font-weight:normal;color:#0a0a14;box-shadow:inset -4px -4px 0 rgba(0,0,0,.3),inset 3px 3px 0 rgba(255,255,255,.45)}
+.ans:nth-child(1) b{background:#ff4d5e}.ans:nth-child(2) b{background:#3fa7ff}.ans:nth-child(3) b{background:#ffd23f}.ans:nth-child(4) b{background:#3dff8b}
+.ans:not(:disabled):hover{border-color:var(--cy);background:#14265a;transform:translateX(6px)}
+.ans:disabled{cursor:default}
+.ans.right{border-color:var(--gr);background:#0c3a26;color:#eafff2;animation:rt .5s 2}
+.ans.wrong{border-color:var(--rd);background:#431220;color:#ffdfe3;animation:wr .4s}
+.ans.gone{max-height:0;min-height:0;opacity:0;padding-top:0;padding-bottom:0;border-width:0;margin-top:-8px}
+@keyframes rt{50%{box-shadow:0 0 0 5px rgba(61,255,139,.45)}}
+@keyframes wr{20%{transform:translateX(-9px)}40%{transform:translateX(9px)}60%{transform:translateX(-6px)}80%{transform:translateX(5px)}}
+.ans .tag{margin-left:auto;flex:none;font-family:'PS2P';font-size:10px;padding:4px 6px;background:rgba(0,0,0,.4)}
+#q-hint{display:none;margin-top:9px;border:3px dashed var(--yl);background:rgba(255,210,63,.08);padding:7px 11px;font-size:25px;color:#fff3c0}
+#q-hint.on{display:block} #q-hint span{font-family:'PS2P';font-size:11px;color:var(--yl);margin-right:8px}
+#q-fb{display:none;margin-top:10px;border-top:3px solid #2b3f7d;padding-top:9px}
+#q-fb.on{display:block;animation:up .3s}
+@keyframes up{from{transform:translateY(16px);opacity:0}}
+#fb-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+#fb-verdict{font-family:'PS2P';font-size:20px}
+#fb-verdict.ok{color:var(--gr)} #fb-verdict.no{color:var(--rd)}
+#fb-expl{font-size:28px;color:#dbe8ff;margin-top:7px}
+#fb-src{font-family:'PS2P';font-size:10px;color:var(--dim);margin-top:6px}
+#stamp{position:absolute;left:0;right:0;top:38%;text-align:center;font-family:'PS2P';font-size:76px;pointer-events:none;opacity:0;z-index:45}
+#stamp small{display:block;font-size:24px;margin-top:12px}
+#stamp.ok{color:var(--gr);text-shadow:6px 6px 0 #0a5a2c,0 0 30px rgba(61,255,139,.9);animation:st1 1s forwards}
+#stamp.no{color:var(--rd);text-shadow:6px 6px 0 #5a0a16,0 0 30px rgba(255,77,94,.9);animation:st2 1s forwards}
+@keyframes st1{0%{opacity:0;transform:scale(.2) rotate(-12deg)}18%{opacity:1;transform:scale(1.25) rotate(4deg)}30%{transform:scale(1) rotate(-2deg)}70%{opacity:1;transform:scale(1) translateY(0)}100%{opacity:0;transform:scale(1) translateY(-70px)}}
+@keyframes st2{0%{opacity:0;transform:scale(3) rotate(8deg)}15%{opacity:1;transform:scale(1) rotate(-7deg)}25%{transform:scale(1.08) rotate(-5deg)}70%{opacity:1;transform:scale(1) rotate(-6deg)}100%{opacity:0;transform:scale(1) rotate(-6deg) translateY(40px)}}
+.kb{outline:4px solid #fff!important;outline-offset:3px;animation:kbp .8s ease-in-out infinite}
+@keyframes kbp{50%{outline-color:var(--yl)}}
+.ans.kb{border-color:#fff;background:#14265a;transform:translateX(6px)}
+#confirm{position:absolute;inset:0;background:rgba(3,5,12,.88);display:none;flex-direction:column;align-items:center;justify-content:center;gap:26px;z-index:48;text-align:center}
+#confirm.on{display:flex}
+
+/* ---------- result / scores / settings ---------- */
+h2{font-family:'PS2P';font-size:27px;margin:2px 0 12px;color:var(--yl);text-shadow:3px 3px 0 #7a4a00;font-weight:normal;text-align:center}
+h3{font-family:'PS2P';font-size:14px;color:var(--cy);margin:16px 0 8px;font-weight:normal}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.stats div{background:#0d1838;border:2px solid #2b3f7d;padding:7px 4px;text-align:center;font-size:30px;color:#fff}
+.stats div span{display:block;font-family:'PS2P';font-size:9px;color:var(--dim);margin-bottom:5px}
+.namerow{display:flex;gap:10px;align-items:center;margin-top:12px;justify-content:center}
+.namerow input{font-family:'PS2P';font-size:17px;width:260px;padding:12px;background:#050914;border:3px solid var(--yl);color:#fff;text-transform:uppercase;user-select:text}
+#sharebox{margin-top:12px;border:3px solid #5865f2;background:#1e1f3a;padding:10px 14px}
+#sharebox pre{margin:0;font-family:'VT';font-size:24px;line-height:1.15;color:#e6e8ff;white-space:pre-wrap;user-select:text}
+.area{display:grid;grid-template-columns:270px 1fr 80px;gap:10px;align-items:center;font-size:24px;margin:3px 0}
+.area .bar{height:14px;background:#16244d}.area .bar i{display:block;height:100%;background:var(--gr)}
+.area .bar i.mid{background:var(--yl)}.area .bar i.low{background:var(--rd)}
+.miss{border-left:5px solid var(--rd);background:#0d1838;padding:8px 11px;margin:8px 0;font-size:24px}
+.miss .q{color:#fff;font-size:26px}.miss .y{color:#ff9aa2}.miss .r{color:var(--gr)}.miss .e{color:#b9d2ff}.miss .s{font-family:'PS2P';font-size:9px;color:var(--dim)}
+.row{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:12px}
+table{width:100%;border-collapse:collapse;font-size:27px}
+th{font-family:'PS2P';font-size:10px;color:var(--cy);font-weight:normal;text-align:left;padding:5px 6px;border-bottom:2px solid #2b3f7d}
+td{padding:4px 6px;border-bottom:1px solid #16244d;white-space:nowrap}
+tr.me td{color:var(--yl);background:rgba(255,210,63,.1)}
+td.n{color:#fff} .empty{text-align:center;color:var(--dim);padding:40px 0}
+.setrow{display:flex;align-items:center;justify-content:space-between;gap:14px;margin:9px 0;font-size:27px}
+.setrow .opts{display:flex;gap:8px;align-items:center}
+.vol{font-size:13px;min-width:150px;text-align:center;color:var(--yl)}
+.note{font-size:23px;color:var(--dim)}
+#diffs{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:8px 10px 6px}
+.dcard{display:flex;flex-direction:column;align-items:flex-start;gap:8px;text-align:left;padding:16px 18px;background:#0d1838;border:4px solid #2b3f7d;box-shadow:6px 6px 0 #05112b;transition:transform .08s}
+.dcard:hover,.dcard:focus-visible{transform:translate(-3px,-3px);box-shadow:9px 9px 0 #05112b;outline:none}
+.dcard .dn{font-family:'PS2P';font-size:24px}
+.dcard .dd{font-size:28px;color:#dbe8ff}
+.dcard .dk{font-family:'PS2P';font-size:11px;color:var(--dim)}
+.dcard.last{border-color:#fff}
+.dcard.easy .dn{color:var(--gr)} .dcard.medium .dn{color:var(--yl)} .dcard.hard .dn{color:#ff9f1c} .dcard.extreme .dn{color:var(--rd)}
+.dcard.easy:hover{border-color:var(--gr)} .dcard.medium:hover{border-color:var(--yl)} .dcard.hard:hover{border-color:#ff9f1c} .dcard.extreme:hover{border-color:var(--rd)}
+
+/* ---------- HUD (scaled with --k) ---------- */
+.hud{position:fixed;top:calc(18px*var(--k));font-family:'PS2P';font-size:calc(12px*var(--k));color:#fff;text-shadow:2px 2px 0 #000;z-index:5}
+#hud-l{left:calc(22px*var(--k))}
+#hud-r{right:calc(22px*var(--k));text-align:right}
+.hudbox{background:rgba(6,4,16,.72);border:calc(3px*var(--k)) solid #3b2a70;padding:calc(10px*var(--k)) calc(12px*var(--k));backdrop-filter:blur(2px)}
+#anger{display:grid;grid-template-columns:repeat(var(--cells,10),1fr);gap:2px;margin:calc(8px*var(--k)) 0 calc(6px*var(--k));width:calc(320px*var(--k))}
+#anger i{height:calc(18px*var(--k));background:#221a40}
+#anger i.on{background:var(--yl)} #anger i.on.b{background:#ff9f1c} #anger i.on.c{background:var(--rd)}
+#mood{color:var(--yl)}
+#coins{display:flex;align-items:center;justify-content:flex-end;gap:calc(9px*var(--k));font-size:calc(22px*var(--k));margin-top:calc(8px*var(--k))}
+.coin{width:calc(24px*var(--k));height:calc(24px*var(--k));border-radius:50%;background:var(--yl);box-shadow:inset -4px -4px 0 #b97f00,inset 3px 3px 0 #fff6c0;display:inline-block}
+#coins.pulse .coin{animation:cn .5s}
+@keyframes cn{50%{transform:scale(1.6) rotate(180deg)}}
+#hud-btns{display:flex;gap:calc(8px*var(--k));justify-content:flex-end;margin-top:calc(10px*var(--k))}
+#hud-btns .btn{font-size:calc(11px*var(--k));padding:calc(8px*var(--k)) calc(10px*var(--k))}
+
+/* ---------- labels and speech bubbles anchored to 3D positions ---------- */
+#rick-tag{position:fixed;transform:translate(-112%,-10%);font-family:'PS2P';font-size:calc(12px*var(--k));line-height:1.5;color:#fff;pointer-events:none;text-shadow:2px 2px 0 #000;transition:opacity .2s;z-index:4;text-align:center;white-space:nowrap}
+#rick-tag span{background:rgba(6,4,16,.8);border:2px solid var(--yl);padding:6px 8px;display:inline-block;animation:bob 1.6s ease-in-out infinite}
+#rick-tag.hide{opacity:0}
+.bubble{position:fixed;transform:translate(-50%,-100%) scale(.8);pointer-events:none;opacity:0;transition:opacity .15s,transform .15s;z-index:7}
+.bubble.on{opacity:1;transform:translate(-50%,-100%)}
+.bubble div{position:relative;background:#fff;color:#14101e;font-family:'PS2P';font-size:calc(14px*var(--k));line-height:1.5;padding:calc(12px*var(--k)) calc(14px*var(--k));border:4px solid #14101e;text-align:center;width:max-content;max-width:min(calc(440px*var(--k)),90vw);white-space:normal;overflow-wrap:break-word}
+.bubble div::after{content:"";position:absolute;left:50%;bottom:-18px;margin-left:-8px;border:8px solid transparent;border-top:10px solid #14101e}
+#bubble.mad div{background:#ffdede;color:#8a0010;border-color:#8a0010}
+#vbubble div{background:#eaf3ff;border-color:#1a3a6a;color:#0a1a3a;font-size:calc(16px*var(--k))}
+#out-ui{position:fixed;left:50%;bottom:calc(60px*var(--k));transform:translateX(-50%);width:calc(1300px*var(--k));text-align:center;display:none;z-index:8}
+#out-ui.on{display:block}
+#out-ui h1{font-family:'PS2P';font-size:calc(62px*var(--k));margin:0;color:var(--rd);text-shadow:6px 6px 0 #5a0a16,0 0 40px rgba(255,77,94,.9);font-weight:normal;animation:st3 .5s}
+@keyframes st3{from{transform:scale(4) rotate(10deg);opacity:0}}
+#out-ui p{font-family:'PS2P';font-size:calc(15px*var(--k));color:#fff;text-shadow:3px 3px 0 #000;margin:calc(16px*var(--k)) 0 calc(14px*var(--k))}
+#out-ui .btn{font-size:calc(17px*var(--k))}
+
+/* ---------- Rickard dialogue ---------- */
+#dlg{position:fixed;left:50%;bottom:3.5vh;width:min(980px,94vw);transform:translate(-50%,130%);transition:transform .35s cubic-bezier(.2,.9,.3,1.2);z-index:20;pointer-events:none}
+#dlg.on{transform:translate(-50%,0);pointer-events:auto}
+#dlg .name{display:inline-block;font-family:'PS2P';font-size:clamp(11px,1.6vh,17px);background:var(--yl);color:#1a1200;padding:.7em 1em;margin-left:18px;border:4px solid #fff;border-bottom:none}
+#dlg .box{background:rgba(8,6,20,.95);border:4px solid #fff;box-shadow:0 0 0 4px #14101e,8px 8px 0 4px rgba(0,0,0,.6);padding:2.2vh 2.4vh;min-height:17vh}
+#dlg-text{font-size:clamp(20px,3.5vh,36px);line-height:1.1;color:#fff;min-height:2.2em}
+#dlg-ch{display:flex;gap:1.6vh;margin-top:1.8vh;flex-wrap:wrap}
+#dlg-ch .btn{font-size:clamp(10px,1.7vh,17px)}
+#tut{position:fixed;inset:0;z-index:30;display:none}
+#tut.on{display:block}
+#tut-spot{position:fixed;border:4px solid var(--yl);border-radius:14px;box-shadow:0 0 0 9999px rgba(4,2,12,.72),0 0 24px rgba(255,210,63,.8);transition:all .35s cubic-bezier(.3,.9,.3,1);pointer-events:none;animation:tsp 1.2s ease-in-out infinite}
+#tut-spot.none{left:50%!important;top:50%!important;width:0!important;height:0!important;border-width:0}
+@keyframes tsp{50%{border-color:#fff}}
+#tut-box{position:fixed;left:50%;transform:translateX(-50%);width:min(760px,92vw);background:rgba(8,6,20,.97);border:4px solid #fff;box-shadow:0 0 0 4px #14101e,8px 8px 0 4px rgba(0,0,0,.6);padding:18px 22px;transition:top .35s,bottom .35s}
+#tut-box.bottom{bottom:4vh;top:auto} #tut-box.top{top:4vh;bottom:auto}
+#tut-n{font-family:'PS2P';font-size:11px;color:var(--dim)}
+#tut-h{font-family:'PS2P';font-size:clamp(14px,2.2vh,20px);color:var(--yl);margin:10px 0;font-weight:normal}
+#tut-t{font-size:clamp(20px,3.2vh,30px);line-height:1.15;color:#fff}
+#tut-t b{color:var(--cy);font-weight:normal}
+#tut .row{margin-top:16px}
+#dim{position:fixed;inset:0;background:radial-gradient(ellipse at 50% 35%,rgba(0,0,0,0) 30%,rgba(0,0,0,.55) 100%);opacity:0;transition:opacity .5s;pointer-events:none;z-index:9}
+#dim.on{opacity:1}
+</style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+<div id="screen"><div id="defocus"></div><div class="inner">
+  <div id="tint"></div>
+  <!-- TITLE -->
+  <div class="view on" id="v-title">
+    <canvas id="logo" width="290" height="168"></canvas>
+    <div class="tmenu" id="tmenu">
+      <button class="titem" id="b-start"><i>▶</i>STARTA SPELET</button>
+      <button class="titem" id="b-scores"><i>▶</i>HIGHSCORE</button>
+      <button class="titem" id="b-tut"><i>▶</i>SÅ SPELAR DU</button>
+      <button class="titem" id="b-settings"><i>▶</i>INSTÄLLNINGAR</button>
+    </div>
+    <div class="credit"><span class="blink">TRYCK ENTER</span> · 50 FRÅGOR · 60 MIN · <span style="color:var(--yl)">RICKARD SÄLJER LEDTRÅDAR</span></div>
+    <div class="ticker"><div id="ticker-in"></div></div>
+  </div>
+  <!-- QUIZ -->
+  <div class="view scroll" id="v-quiz">
+    <div class="qh"><span id="q-no">FRÅGA 01/50</span><span id="q-time">60:00</span><span id="q-score">POÄNG 0000</span></div>
+    <div id="q-prog"></div>
+    <div id="q-cat"></div>
+    <div id="q-text"></div>
+    <div id="q-ans"></div>
+    <div id="q-hint"><span>RICKARD:</span><em id="q-hint-t" style="font-style:normal"></em></div>
+    <div id="q-fb">
+      <div id="fb-head"><div id="fb-verdict"></div><button class="btn yl" id="b-next">NÄSTA ▶</button></div>
+      <div id="fb-expl"></div><div id="fb-src"></div>
+    </div>
+    <div id="stamp"></div>
+    <div id="confirm"><div class="ps" style="font-size:22px;line-height:1.6">AVSLUTA SPELET?<br><span style="font-size:13px;color:var(--dim)">Rundan sparas inte i highscore.</span></div>
+      <div class="row"><button class="btn mg" id="b-quit-yes">JA, AVSLUTA</button><button class="btn" id="b-quit-no">NEJ, FORTSÄTT</button></div></div>
+  </div>
+  <!-- DIFFICULTY -->
+  <div class="view" id="v-diff">
+    <h2>VÄLJ SVÅRIGHETSGRAD</h2>
+    <div id="diffs"></div>
+    <div class="row"><button class="btn mg" id="b-menu">TILLBAKA</button></div>
+    <div class="note" style="text-align:center;margin-top:8px">Piltangenter + Enter eller 1–4 · Esc tillbaka</div>
+  </div>
+  <div class="view scroll" id="v-result"></div>
+  <div class="view scroll" id="v-scores"></div>
+  <div class="view scroll" id="v-settings"></div>
+</div></div>
+<div class="hud" id="hud-l"><div class="hudbox">
+  <div>DÖRRVAKTENS HUMÖR</div>
+  <div id="anger"></div>
+  <div>FEL <span id="h-wrong">0</span>/<span id="h-max">10</span> · <span id="mood">LUGN</span></div>
+</div></div>
+<div class="hud" id="hud-r"><div class="hudbox">
+  <div>MYNT · <span id="h-diff">HARD</span></div>
+  <div id="coins"><i class="coin"></i><span id="h-coins">×5</span></div>
+</div>
+<div id="hud-btns"><button class="btn sm" id="b-music">♪ PÅ</button><button class="btn sm" id="b-sound">LJUD PÅ</button><button class="btn sm mg" id="b-quit" style="display:none">AVSLUTA</button></div></div>
+<div id="rick-tag" class="hide"><span>RICKARD<br>LEDTRÅD [H]</span></div>
+<div id="bubble" class="bubble"><div></div></div>
+<div id="vbubble" class="bubble"><div></div></div>
+<div id="out-ui"><h1>UTKASTAD!</h1><p>MARIAMS DÖRRVAKT HAR TALAT. PLUGGA PÅ OCH KOM TILLBAKA.</p><button class="btn yl" id="b-out">TILLBAKA IN ▶</button></div>
+<canvas id="fx"></canvas>
+<div id="dim"></div>
+<div id="dlg"><div class="name">RICKARD</div><div class="box"><div id="dlg-text"></div><div id="dlg-ch"></div></div></div>
+<div id="tut"><div id="tut-spot"></div><div id="tut-box">
+  <div id="tut-n"></div><h3 id="tut-h"></h3><div id="tut-t"></div>
+  <div class="row" style="justify-content:space-between"><button class="btn sm" id="tut-skip">HOPPA ÖVER</button><span><button class="btn sm" id="tut-prev">◀ TILLBAKA</button> <button class="btn sm yl" id="tut-next">NÄSTA ▶</button></span></div>
+</div></div>
+<div id="loading">LADDAR ARKADHALLEN...</div>
+<script type="text/plain" id="music-b64">__MUSIC__</script>
+<script>
+/*__BUNDLE__*/
+</script>
+<script>
+"use strict";
+/*__SPRITES__*/
+/*__AUDIO__*/
+/*__GAME__*/
+/*__QUESTIONS__*/
+window.addEventListener('load', () => setTimeout(boot, 30));
+</script>
+</body>
+</html>

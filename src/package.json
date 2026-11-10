@@ -1,0 +1,16 @@
+{
+  "name": "natverkssakerhet-arcade",
+  "version": "1.0.0",
+  "description": "Pluggspel inför tentan i Nätverkssäkerhet: ett 3D-arkadspel i pixelgrafik",
+  "type": "commonjs",
+  "dependencies": {
+    "esbuild": "^0.24.0",
+    "three": "^0.170.0"
+  },
+  "private": true,
+  "author": "",
+  "license": "",
+  "scripts": {
+    "build": "python3 build.py"
+  }
+}
