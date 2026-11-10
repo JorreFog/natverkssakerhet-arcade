@@ -553,7 +553,8 @@ function placeScreen() {
 function placeAt(el, p, dy) {
   // keep labels inside the window and below the HUD boxes
   const w = el.offsetWidth || 200, h = el.offsetHeight || 40, hb = document.querySelector('#hud-l').getBoundingClientRect().bottom + 8;
-  const x = Math.max(w / 2 + 8, Math.min(innerWidth - w / 2 - 8, p.x)), y = Math.max(hb + h, Math.min(innerHeight - 8, p.y + (dy || 0)));
+  const top = document.body.classList.contains('cine') ? 8 : hb;
+  const x = Math.max(w / 2 + 8, Math.min(innerWidth - w / 2 - 8, p.x)), y = Math.max(top + h, Math.min(innerHeight - 8, p.y + (dy || 0)));
   el.style.left = Math.round(x) + 'px'; el.style.top = Math.round(y) + 'px';
 }
 

@@ -796,7 +796,7 @@ W.startVisitor = () => {
   VIS.path = planPath(VIS, -1.85, -2.35); VIS.m.visible = true; return true;
 };
 W.visPhase = () => VIS.on ? VIS.phase : null;
-W.visitorSay = () => VIS.on && VIS.say ? { text: VIS.say, pos: W.project(VIS.m.localToWorld(V3(0, 1.95 * SPR().VISITOR.height, 0))) } : null;
+W.visitorSay = () => VIS.on && VIS.say ? { text: VIS.say, pos: W.project(VIS.m.localToWorld(V3(0, 1.84, 0))) } : null;   // top of his hair
 function updateVisitor(t, dt) {
   if (!VIS.on) return;
   const walk = () => {
@@ -985,7 +985,7 @@ W.project = (v) => {
   return { x: W.ox + (p.x * 0.5 + 0.5) * iw * px, y: W.oy + (-p.y * 0.5 + 0.5) * ih * px, z: p.z, vis: p.z < 1 };
 };
 W.headPos = (who) => {
-  if (who === 'doorman') return W.project(C.dm.localToWorld(V3(0, 2.18, 0)));
+  if (who === 'doorman') return W.project(C.dm.localToWorld(V3(0, 2.02, 0)));   // top of his head
   if (who === 'rickard') return W.project(C.rk.localToWorld(V3(0.0, 1.9, 0)));
   if (who === 'hand') return W.project(C.rk.localToWorld(V3(0.33, 1.15, 0)));
 };
