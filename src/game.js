@@ -311,7 +311,7 @@ function saveBox(L) {
 }
 function saveScore() {
   const L = G.last; if (!L || L.saved) return;
-  const name = ($('#name').value.trim() || 'ANONYM').toUpperCase().slice(0, 10);
+  const name = cleanName($('#name').value) || 'ANONYM';
   SET.name = name; saveSet(); L.saved = true; L.name = name; L.ts = Date.now(); L.id = hsId();
   const sc = LS.get('scores', []); sc.push(L);
   LS.set('scores', topPerDiff(sc, 10)); SFX.coin();
@@ -356,7 +356,7 @@ function hsLoad() {
   HS.state = 'loading';
   return HS.busy = fetch(HS_API + '/scores', { cache: 'no-store' })
     .then(r => r.ok ? r.json() : Promise.reject(r.status))
-    .then(list => { HS.list = Array.isArray(list) ? list : []; HS.state = 'ok'; hsPrune(); })
+    .then(list => { HS.list = Array.isArray(list) ? list : []; HS.state = 'ok'; hsPrune(); hsResend(); })
     .catch(() => { HS.state = 'error'; })
     .then(() => { HS.busy = null; return HS.list; });
 }
@@ -365,13 +365,38 @@ function hsPrune() {
   const ids = new Set((HS.list || []).map(s => s.id));
   LS.set('pending', LS.get('pending', []).filter(p => !ids.has(p.id) && Date.now() - p.sent < 15 * 60e3));
 }
+// Samma regel som highscore/validate.mjs: inga osynliga tecken, högst 10 tecken (inte UTF-16-enheter).
+const cleanName = s => Array.from(String(s).replace(/[^\p{L}\p{M}\p{N}\p{P}\p{S}\p{Zs}]/gu, '').trim().toUpperCase()).slice(0, 10).join('').trim();
+// Resultat som sparats lokalt men aldrig kom fram (t.ex. stoppade av en äldre namnregel eller
+// för många försök från samma nätverk) skickas om en gång när online-listan har hämtats.
+function hsResend() {
+  if (!HS_API || /#t=/.test(location.hash) || !HS.list) return;
+  const have = new Set(HS.list.map(s => s.id).concat(LS.get('pending', []).map(p => p.id)));
+  const done = new Set(LS.get('resent', []));
+  const todo = LS.get('scores', []).filter(s => s.id && !have.has(s.id) && !done.has(s.id) && Date.now() - (s.ts || 0) < 14 * 864e5 && !(G.last && G.last.id === s.id));
+  todo.slice(0, 5).forEach((s, i) => setTimeout(() => {
+    LS.set('resent', LS.get('resent', []).concat(s.id).slice(-200));
+    const body = hsBody(Object.assign({}, s, { name: cleanName(s.name) || 'ANONYM' }));
+    hsPost(body)
+      .then(() => { const p = LS.get('pending', []); p.push(Object.assign({}, body, { date: s.date, sent: Date.now(), pending: true })); LS.set('pending', p); })
+      .catch(() => { });
+  }, 2000 + i * 3000));
+}
+const hsBody = L => ({ id: L.id, name: L.name, score: L.score, right: L.right, wrong: L.wrong, diff: L.diff, coins: L.coins, time: L.time, reason: L.reason, best: L.best });
+// POST med nya försök när workern svarar 429 (många på samma nätverk sparar samtidigt).
+function hsPost(body, tries = 4) {
+  return fetch(HS_API + '/scores', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    .then(r => r.json().catch(() => ({})).then(j => {
+      if (r.status === 429 && tries > 1) return new Promise(res => setTimeout(res, 15000 + Math.random() * 20000)).then(() => hsPost(body, tries - 1));
+      if (!r.ok) throw new Error(j.error || 'fel ' + r.status);
+    }));
+}
 function hsSend(L) {
   if (!HS_API || /#t=/.test(location.hash)) return;   // testlägen skickar aldrig
-  const body = { id: L.id, name: L.name, score: L.score, right: L.right, wrong: L.wrong, diff: L.diff, coins: L.coins, time: L.time, reason: L.reason, best: L.best };
+  const body = hsBody(L);
   const show = () => { const b = $('#savebox'); if (b && G.last === L) b.innerHTML = saveBox(L); };
   L.online = 'sending'; L.onlineErr = ''; show();
-  fetch(HS_API + '/scores', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-    .then(r => r.json().catch(() => ({})).then(j => { if (!r.ok) throw new Error(j.error || 'fel ' + r.status); }))
+  hsPost(body)
     .then(() => {
       L.online = 'ok';
       const p = LS.get('pending', []); p.push(Object.assign({}, body, { date: L.date, sent: Date.now(), pending: true })); LS.set('pending', p);

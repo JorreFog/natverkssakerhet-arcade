@@ -15,7 +15,9 @@ export const DIFFS = {
   extreme: { coins: 1, maxWrong: 3 }
 };
 const REASONS = ['done', 'time', 'out'];
-const NAME_RE = /^[A-Z0-9ÅÄÖÆØÜÉ _.\-!?]{1,10}$/;
+// Alla bokstäver, siffror, tecken och emoji i alla språk (ZOË, O'NEIL, KIM & ALI, 🙂), men inga
+// osynliga tecken eller radbrytningar. Spelet visar alltid namnet escapat. Längd räknas i tecken.
+const NAME_RE = /^[\p{L}\p{M}\p{N}\p{P}\p{S}\p{Zs}]{1,10}$/u;
 const ID_RE = /^[a-z0-9]{8,24}$/;
 
 // Högsta möjliga poäng med n rätt: alla i en enda svit utan ledtråd.

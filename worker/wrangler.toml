@@ -13,8 +13,9 @@ ALLOWED_ORIGINS = "https://jorrefog.github.io,null"
 # Hemlighet (sätts av deploy-workflowet, aldrig här):
 #   GH_TOKEN  fine-grained token med Contents: Read and write på bara det här repot
 
-# Max 5 sparade resultat per minut och IP-adress.
+# Max 30 sparade resultat per minut och IP-adress. En hel klass på skolans nätverk delar
+# en IP-adress, så gränsen får inte vara för låg (5 stoppade elever som sparade samtidigt).
 [[ratelimits]]
 name = "LIMITER"
 namespace_id = "1001"
-simple = { limit = 5, period = 60 }
+simple = { limit = 30, period = 60 }
