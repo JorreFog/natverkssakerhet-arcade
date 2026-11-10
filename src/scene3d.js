@@ -795,6 +795,7 @@ W.startVisitor = () => {
   Object.assign(VIS, { on: true, x: -4.4, z: -9.35, phase: 'in', say: null, walkPh: 0, view: 'front', act: 'walk', flip: false, t0: clock.t, last: -1 });
   VIS.path = planPath(VIS, -1.85, -2.35); VIS.m.visible = true; return true;
 };
+W.visPhase = () => VIS.on ? VIS.phase : null;
 W.visitorSay = () => VIS.on && VIS.say ? { text: VIS.say, pos: W.project(VIS.m.localToWorld(V3(0, 1.95 * SPR().VISITOR.height, 0))) } : null;
 function updateVisitor(t, dt) {
   if (!VIS.on) return;
@@ -1026,8 +1027,18 @@ W.resize = () => {
   W.px = px; W.iw = iw; W.ih = ih;
 };
 W.setFocus = (m) => { CAM.mode = m; };
+// ---- director mode (trailer): scripted camera moves, absolute or around a (moving) character
+W.cine = (spec) => { CAM.cine = spec ? Object.assign({ t0: clock.t }, spec) : null; };
+function cineTarget(name) {
+  if (name === 'doorman') return C.dm.position.clone().add(V3(0, 1.95, 0));
+  if (name === 'rickard') return C.rk.localToWorld(V3(0.05, 1.55, 0));
+  if (name === 'visitor') return VIS.m.position.clone().add(V3(0, 1.75, 0));
+  if (name === 'screen') return L.cab.userData.mid.clone();
+  if (name === 'crowd') { const g = C.npcs.filter(n => n.gathered && (!n.custom || n.active)); if (!g.length) return V3(1.5, 1.3, -2.5); const v = V3(); g.forEach(n => v.add(V3(n.x, 1.3, n.z))); return v.multiplyScalar(1 / g.length); }
+  return V3();
+}
 // how far the view is turned away from the game screen (0 = straight at it)
-W.lookAway = () => cur !== hall ? 1 : Math.max(Math.abs(CAM.sx), Math.abs(CAM.sy), CAM.k, A_charge());
+W.lookAway = () => cur !== hall || CAM.cine ? 1 : Math.max(Math.abs(CAM.sx), Math.abs(CAM.sy), CAM.k, A_charge());
 const A_charge = () => (GS().charge >= 0 ? 1 : 0);
 // a canvas copy of the DOM screen, shown on the 3D glass when the DOM screen is hidden
 W.setMirror = (c) => {
@@ -1109,6 +1120,11 @@ function frameHall(t, dt, A) {
   dir.applyAxisAngle(right, -CAM.sy * 0.3 + Math.sin(t * 0.37) * 0.004 * par * away);
   look.copy(pos).add(dir);
   if (CAM.shake > 0) { pos.x += (Math.random() - 0.5) * CAM.shake * 0.04; pos.y += (Math.random() - 0.5) * CAM.shake * 0.03; CAM.shake = Math.max(0, CAM.shake - dt * 3); }
+  if (CAM.cine) {
+    const c = CAM.cine, u = smooth(clamp((t - c.t0) / c.dur, 0, 1)), base = c.around ? cineTarget(c.around) : V3();
+    pos.copy(base).add(V3(...c.from).lerp(V3(...c.to), u));
+    look.copy(base).add(V3(...c.look).lerp(V3(...(c.lookTo || c.look)), u));
+  }
   // the doorman charging the camera
   let chargeU = -1;
   if (A.charge >= 0) {
@@ -1117,8 +1133,8 @@ function frameHall(t, dt, A) {
   }
   camera.position.copy(pos); camera.lookAt(look);
   if (t - (CAM.afT || 0) > 0.08) { CAM.afT = t; CAM.afTarget = autoFocus(sc.focus); }
-  const wantF = lerp(CAM.afTarget || sc.focus, rk.focus, k);
-  CAM.focus += (wantF - CAM.focus) * Math.min(1, dt * 4.5);
+  const wantF = CAM.cine ? (CAM.cine.focus || pos.distanceTo(look)) : lerp(CAM.afTarget || sc.focus, rk.focus, k);
+  CAM.focus += (wantF - CAM.focus) * Math.min(1, dt * (CAM.cine ? 12 : 4.5));
   M.dof.uniforms.uFocus.value = CAM.focus;
   M.dof.uniforms.uRange.value = 2.2; M.dof.uniforms.uMaxR.value = 2.2;
   M.final.uniforms.uFade.value = 1;
