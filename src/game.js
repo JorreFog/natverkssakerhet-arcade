@@ -532,7 +532,7 @@ function renderSettings() {
     <div class="setrow"><span>CRT-effekt (scanlines)</span><div class="opts">${tg('crt', 'PÅ', 'AV')}</div></div>
     <div class="setrow"><span>Kamerarörelse</span><div class="opts">${tg('cam', 'PÅ', 'AV')}</div></div>
     <div class="setrow"><span>Nollställ</span><div class="opts"><button class="btn sm mg" data-reset="scores">HIGHSCORE</button><button class="btn sm mg" data-reset="stat">FRÅGESTATISTIK</button></div></div>
-    <div class="note">Piltangenter flyttar markeringen och Enter väljer, överallt. 1–4 eller A–D svarar direkt · H pratar med Rickard · M ljudeffekter · N musik.</div>
+    <div class="note">Piltangenter flyttar markeringen och Enter väljer, överallt. 1–4 eller A–D svarar direkt · H pratar med Rickard · M ljud (effekter, maskiner, prat) · N musik.</div>
     <div class="row"><button class="btn yl" id="b-menu">KLAR</button></div>`;
 }
 function toTitle() { fillTicker(); titleSel(0); G.mode = 'title'; clearInterval(timerId); A.lvl = 0; A.screenOff = false; $('#screen').classList.remove('off'); World.crowdEvent('reset', {}); view('title'); hud(); }
@@ -772,7 +772,7 @@ function boot() {
   try { World.init(document.getElementById('scene')); }
   catch (e) { document.body.insertAdjacentHTML('beforeend', '<div id="nogl">Spelet behöver WebGL. Prova en annan webbläsare eller slå på hårdvaruacceleration.<br><small>' + esc(e.message) + '</small></div>'); return; }
   layout(); addEventListener('resize', layout);
-  MUSIC.setVolume(SET.mvol); MUSIC.setEnabled(SET.music); AMBI.setVolume(SET.avol); AMBI.setEnabled(SET.ambi);
+  MUSIC.setVolume(SET.mvol); MUSIC.setEnabled(SET.music); AMBI.setVolume(SET.avol); AMBI.setEnabled(SET.ambi && SET.sound);
   addEventListener('mousemove', e => { if (KB.el && Math.abs(e.movementX) + Math.abs(e.movementY) > 6) kbClear(); mouse.x = e.clientX / innerWidth * 2 - 1; mouse.y = e.clientY / innerHeight * 2 - 1; mouse.cx = e.clientX; mouse.cy = e.clientY; });
   const firstGesture = () => { audioCtx(); MUSIC.start(); AMBI.start(); removeEventListener('pointerdown', firstGesture); removeEventListener('keydown', firstGesture); };
   addEventListener('pointerdown', firstGesture); addEventListener('keydown', firstGesture);
@@ -786,7 +786,7 @@ function boot() {
     if (b.dataset.c != null) { const c = dlgChoices[+b.dataset.c]; if (c) { SFX.click(); c.fn(); } return; }
     if (b.classList.contains('ans')) return answer(+b.dataset.k);
     if (b.dataset.pick) return pickDiff(b.dataset.pick);
-    if (b.dataset.tg) { SET[b.dataset.tg] = !SET[b.dataset.tg]; saveSet(); SFX.click(); if (b.dataset.tg === 'music') MUSIC.setEnabled(SET.music); if (b.dataset.tg === 'ambi') AMBI.setEnabled(SET.ambi); renderSettings(); return hud(); }
+    if (b.dataset.tg) { SET[b.dataset.tg] = !SET[b.dataset.tg]; saveSet(); SFX.click(); if (b.dataset.tg === 'music') MUSIC.setEnabled(SET.music); if (b.dataset.tg === 'ambi' || b.dataset.tg === 'sound') AMBI.setEnabled(SET.ambi && SET.sound); renderSettings(); return hud(); }
     if (b.dataset.avol) { SET.avol = Math.max(0, Math.min(1, Math.round((SET.avol + 0.1 * +b.dataset.avol) * 10) / 10)); saveSet(); AMBI.setVolume(SET.avol); SFX.click(); return renderSettings(); }
     if (b.dataset.vol) { SET.mvol = Math.max(0, Math.min(1, Math.round((SET.mvol + 0.1 * +b.dataset.vol) * 10) / 10)); saveSet(); MUSIC.setVolume(SET.mvol); SFX.click(); return renderSettings(); }
     if (b.dataset.hsd) { HS.diff = b.dataset.hsd; SFX.click(); return renderScores(G.last && G.last.ts); }
@@ -802,7 +802,7 @@ function boot() {
       case 'b-save': return saveScore();
       case 'b-resend': SFX.click(); return hsSend(G.last);
       case 'b-share': return share();
-      case 'b-sound': SET.sound = !SET.sound; saveSet(); SFX.click(); return hud();
+      case 'b-sound': SET.sound = !SET.sound; saveSet(); AMBI.setEnabled(SET.ambi && SET.sound); SFX.click(); return hud();
       case 'b-music': SET.music = !SET.music; saveSet(); MUSIC.setEnabled(SET.music); return hud();
       case 'b-quit': SFX.click(); return $('#confirm').classList.add('on');
       case 'b-quit-no': SFX.click(); return $('#confirm').classList.remove('on');
@@ -833,7 +833,7 @@ function boot() {
       if (kbMove(step)) { e.preventDefault(); SFX.click(); return; }
     }
     if ((k === 'enter' || k === ' ') && KB.el && KB.el.classList.contains('kb') && kbButtons().includes(KB.el)) { const b = KB.el; kbClear(); b.click(); return; }
-    if (k === 'm') { SET.sound = !SET.sound; saveSet(); return hud(); }
+    if (k === 'm') { SET.sound = !SET.sound; saveSet(); AMBI.setEnabled(SET.ambi && SET.sound); return hud(); }
     if (k === 'n') { SET.music = !SET.music; saveSet(); MUSIC.setEnabled(SET.music); return hud(); }
     if (dlgOpen) {
       if (k === 'escape') return closeDlg();

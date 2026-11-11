@@ -102,19 +102,24 @@ const MUSIC = (() => {
     const mono = ac.createGain(); mono.channelCount = 1; mono.channelCountMode = 'explicit'; mono.channelInterpretation = 'speakers';
     sh.connect(mono);
     const spk = (window.World && World.audioScene && World.audioScene().speakers) || [{ x: -3.2, y: 2.9, z: -9.6, dx: 0, dy: -0.15, dz: 1 }, { x: 5.6, y: 2.9, z: -6, dx: -1, dy: -0.15, dz: 0 }];
-    spk.forEach((o, i) => {
-      const g = ac.createGain(); g.gain.value = 1.15;
-      const d = ac.createDelay(0.05); d.delayTime.value = i * 0.0037;   // tiny offsets so the speakers don't fuse into one phantom
-      const p = SPACE.panner(ac, { x: o.x, y: o.y, z: o.z, dir: [o.dx, o.dy, o.dz], ref: 2.2, roll: 0.9, inner: 120, outer: 280, outerGain: 0.5 });
+    // set up like a real installation: every speaker equally loud at the player's spot (the nearest one, on the left
+    // wall, would otherwise win), and the right-hand speakers a few ms first so that's where the sound is heard from
+    const P = { x: 0, y: 1.76, z: 1.45 }, REF = 2.2, ROLL = 0.9;
+    const att = d => REF / (REF + ROLL * Math.max(0, d - REF)), dist = o => Math.hypot(o.x - P.x, o.y - P.y, o.z - P.z);
+    const mean = spk.reduce((a, o) => a + dist(o), 0) / spk.length, byX = spk.slice().sort((a, b) => b.x - a.x);
+    spk.forEach(o => {
+      const g = ac.createGain(); g.gain.value = 1.6 * att(mean) / att(dist(o));
+      const d = ac.createDelay(0.05); d.delayTime.value = byX.indexOf(o) * 0.0025;
+      const p = SPACE.panner(ac, { x: o.x, y: o.y, z: o.z, dir: [o.dx, o.dy, o.dz], ref: REF, roll: ROLL, inner: 120, outer: 280, outerGain: 0.5 });
       mono.connect(d); d.connect(g); g.connect(p); p.connect(bus);
     });
     // the room
     const conv = ac.createConvolver(); conv.buffer = SPACE.roomIR(ac, 2.5);
-    const wet = ac.createGain(); wet.gain.value = 0.42; sh.connect(conv); conv.connect(wet); wet.connect(bus);
+    const wet = ac.createGain(); wet.gain.value = 0.26; sh.connect(conv); conv.connect(wet); wet.connect(bus);
     // slap-back echoes off the far walls (left and right a little apart), each repeat darker than the last
     [[0.093, -0.6], [0.131, 0.6]].forEach(([dt, pan]) => {
       const d = ac.createDelay(1), fb = ac.createGain(), tone = ac.createBiquadFilter(), out = ac.createGain(), pn = ac.createStereoPanner();
-      d.delayTime.value = dt; fb.gain.value = 0.18; tone.type = 'lowpass'; tone.frequency.value = 2400; out.gain.value = 0.11; pn.pan.value = pan;
+      d.delayTime.value = dt; fb.gain.value = 0.18; tone.type = 'lowpass'; tone.frequency.value = 2400; out.gain.value = 0.07; pn.pan.value = pan;
       mono.connect(d); d.connect(tone); tone.connect(fb); fb.connect(d); tone.connect(out); out.connect(pn); pn.connect(bus); out.connect(conv);
     });
     muffle = ac.createBiquadFilter(); muffle.type = 'lowpass'; muffle.frequency.value = 18000; muffle.Q.value = 0.7;
@@ -136,7 +141,8 @@ const MUSIC = (() => {
     rarePlaying() { return !!(built && enabled && el && !el.paused && tracks[order[pos]] && tracks[order[pos]].chance < 1); },
     _test: {   // test hooks: jump to the rare song / to near the end of the current song
       playRare() { if (!build()) return; const i = tracks.findIndex(t => t.chance < 1); if (i < 0) return; order.splice(pos + 1, 0, i); nextTrack(); },
-      seekEnd(s) { if (el && el.duration) el.currentTime = Math.max(0, el.duration - s); }
+      seekEnd(s) { if (el && el.duration) el.currentTime = Math.max(0, el.duration - s); },
+      src(u) { if (el) { el.src = u; el.loop = true; el.play(); } }
     },
     duck(on) { duck = on ? 0.55 : 1; apply(); },
     outside(on) { outside = on; apply(); },
