@@ -348,6 +348,7 @@ function makeCabinet(o) {
 // ============================================================
 const L = {};          // named lights / objects
 const SPOTS = { play: [], hang: [], gather: [] };
+const AUD = { srcs: [], speakers: [] };   // where sounds come from in the hall (read by audio.js via W.audioScene)
 const OBST = [];
 const ANIM = [];       // per-frame callbacks
 
@@ -443,6 +444,7 @@ function buildHall() {
     c.position.set(x, 0, z); c.rotation.y = ry; c.scale.setScalar(0.98); s.add(c);
     const fwd = V3(Math.sin(ry), 0, Math.cos(ry));
     SPOTS.play.push({ x: x + fwd.x * 0.85, z: z + fwd.z * 0.85, view, flip: false, cab: c, busy: null });
+    AUD.srcs.push({ kind: 'cab', seed: k, x: x + fwd.x * 0.3, y: 1.15, z: z + fwd.z * 0.3, dx: fwd.x, dz: fwd.z, spot: SPOTS.play[SPOTS.play.length - 1] });
     const h = 0.45, hx = Math.abs(fwd.x) > 0.5 ? 0.55 : 0.4, hz = Math.abs(fwd.x) > 0.5 ? 0.4 : 0.55;
     OBST.push([x - hx, z - hz, x + hx, z + hz]);
     k++; return c;
@@ -466,6 +468,7 @@ function buildHall() {
     const ball = new THREE.Mesh(new THREE.SphereGeometry(0.018, 8, 6), std({ color: 0xffffff, metalness: 1, roughness: 0.1, emissive: 0x666666 }));
     g.add(ball); ANIM.push(t => { const u = t * 0.9 + hue; ball.position.set(Math.sin(u * 2.1) * 0.22, 1.05 + Math.cos(u * 1.3) * 0.04, Math.cos(u * 1.3) * 0.45); });
     SPOTS.play.push({ x, z: z + 0.95, view: 'back', flip: false, busy: null });
+    AUD.srcs.push({ kind: 'pin', seed: hue, x, y: 1.0, z, dx: 0, dz: 1, spot: SPOTS.play[SPOTS.play.length - 1] });
     OBST.push([x - 0.4, z - 0.75, x + 0.4, z + 0.7]);
   };
   pinball(0.9, -5.6, 280); pinball(2.0, -5.6, 30); pinball(-2.9, -5.6, 160);
@@ -512,6 +515,7 @@ function buildHall() {
     const tw = new THREE.Mesh(new THREE.CircleGeometry(0.05, 12), std({ map: T.cone, roughness: 0.5 })); tw.position.set(0, 0.18, 0.162); g.add(tw);
     const led = box(0.02, 0.02, 0.01, glowMat(null, 3, 0x3dff8b)); led.material.transparent = false; led.position.set(0.15, 0.26, 0.165); g.add(led);
     g.rotation.x = 0.15; L.speakers.push({ cone, tw });
+    AUD.speakers.push({ x: x + Math.sin(ry) * 0.17, y, z: z + Math.cos(ry) * 0.17, dx: Math.sin(ry), dy: -0.15, dz: Math.cos(ry) });
   };
   speaker(-3.2, 2.9, -9.8, 0); speaker(5.15, 2.9, -9.8, 0); speaker(-5.8, 2.9, -1.0, Math.PI / 2); speaker(5.8, 2.9, -6.0, -Math.PI / 2);
   // ---- plants + trash bin (foreground and corners)
@@ -541,6 +545,7 @@ function buildHall() {
     OBST.push([-0.55, -0.7, 0.6, 1.2]);
     const nb = makeCabinet({ title: 'ROOT QUEST', hue: 150, seed: 31, screen: SCREENS[2], w: 0.7 });
     nb.position.set(1.3, 0, -2.45); nb.rotation.y = -0.28; s.add(nb);
+    AUD.srcs.push({ kind: 'cab', seed: 31, x: 1.3 - Math.sin(0.28) * 0.3, y: 1.15, z: -2.45 + Math.cos(0.28) * 0.3, dx: -Math.sin(0.28), dz: Math.cos(0.28), spot: null });
     OBST.push([0.85, -3.1, 2.5, -1.7]);
   }
   // ---- lights
@@ -740,6 +745,51 @@ W.crowdEvent = (kind, info) => {
   }
 };
 
+// ---------- small talk: nearby people take turns talking (audio.js gives them voices) ----------
+const TALK = { convs: [], nextTry: 0, seq: 0 };
+const canTalk = n => (!n.custom || n.active) && (n.state === 'hang' || n.state === 'idle' || n.state === 'watchP' || n.state === 'play');
+function updateTalk(t) {
+  const npcs = C.npcs.filter(n => !n.custom || n.active);
+  // end conversations that broke up
+  TALK.convs = TALK.convs.filter(c => {
+    const ok = t < c.end && c.ppl.every(canTalk) && Math.hypot(c.ppl[0].x - c.ppl[1].x, c.ppl[0].z - c.ppl[1].z) < 2.6;
+    if (!ok) for (const n of c.ppl) { n.conv = null; n.talk = null; }
+    return ok;
+  });
+  // start new ones between people standing close to each other
+  if (t > TALK.nextTry) {
+    TALK.nextTry = t + 0.8 + Math.random() * 1.2;
+    const free = npcs.filter(n => canTalk(n) && !n.conv && !(n.convCool > t));
+    for (const a of free) {
+      if (a.conv || Math.random() > 0.45) continue;
+      const near = free.filter(b => b !== a && !b.conv && Math.hypot(a.x - b.x, a.z - b.z) < (a.state === 'play' && b.state === 'play' ? 1.4 : 2.2));
+      if (!near.length) continue;
+      const b = near[Math.random() * near.length | 0], c = { ppl: [a, b], end: t + 8 + Math.random() * 20, turn: Math.random() < 0.5 ? 0 : 1, next: t + 0.3 };
+      a.conv = b.conv = c; TALK.convs.push(c);
+    }
+  }
+  // turn-taking: one talks at a time, short pauses, sometimes the same person goes on
+  for (const c of TALK.convs) {
+    if (t < c.next) continue;
+    if (Math.random() < 0.7) c.turn ^= 1;
+    const who = c.ppl[c.turn], other = c.ppl[c.turn ^ 1];
+    const playing = who.state === 'play' || who.state === 'watchP', dur = (playing ? 0.5 : 0.9) + Math.random() * (playing ? 1.0 : 2.2);
+    who.talk = { seq: ++TALK.seq, t0: t, dur }; other.talk = null;
+    c.next = t + dur + 0.2 + Math.random() * (Math.random() < 0.15 ? 2.5 : 0.7);
+  }
+  for (const c of TALK.convs) if (t >= c.end - 0.05) for (const n of c.ppl) n.convCool = t + 4 + Math.random() * 8;
+}
+W.audioScene = () => {
+  const d = V3(); camera.getWorldDirection(d);
+  return {
+    outside: cur === street,
+    cam: { x: camera.position.x, y: camera.position.y, z: camera.position.z, fx: d.x, fy: d.y, fz: d.z, ux: camera.up.x, uy: camera.up.y, uz: camera.up.z },
+    speakers: AUD.speakers,
+    srcs: AUD.srcs.map(a => (a.busy = !!(a.spot && a.spot.busy && a.spot.busy.state === 'play'), a)),
+    npcs: C.npcs.filter(n => !n.custom || n.active).map(n => ({ id: n.id, x: n.x, y: 1.55 * (n.P.height || 1), z: n.z, h: n.P.height || 1, talk: n.talk && clock.t < n.talk.t0 + n.talk.dur ? n.talk : null }))
+  };
+};
+
 function updateNPC(n, t, dt, camPos) {
   // timed reactions
   if (n.leaveAt && t > n.leaveAt) { n.leaveAt = 0; n.gathered = false; n.react = null; routine(n); }
@@ -763,6 +813,10 @@ function updateNPC(n, t, dt, camPos) {
     case 'look': n.view = 'front'; n.act = 'look'; if ((n.timer -= dt) < 0) { n.state = 'idle'; n.timer = 0.4; } break;
     case 'laugh': n.view = 'front'; n.act = (Math.floor(t * 0.8 + n.id) & 1) ? 'laugh' : 'point'; n.flip = n.x > 0; if ((n.timer -= dt) < 0) { emote(n, 'dots', 1); routine(n); } break;
     case 'watchP': n.view = 'front'; n.act = n.react && t < n.react.until ? n.react.act : (Math.sin(t * 0.7 + n.id) > 0.3 ? 'hips' : 'idle'); break;
+  }
+  if (n.conv && (n.state === 'hang' || n.state === 'idle')) {
+    const o = n.conv.ppl[0] === n ? n.conv.ppl[1] : n.conv.ppl[0], dx = o.x - n.x, dz = o.z - n.z;
+    if (Math.abs(dx) > Math.abs(dz) * 0.8) { n.view = 'side'; n.flip = dx < 0; n.act = 'idle'; }
   }
   if (n.custom === 'pelle' && (n.state === 'hang' || n.state === 'idle' || n.state === 'watchP') && (n.jumpT -= dt) < 0) { n.jumpT = 9 + Math.random() * 9; n.jumpAt = t; n.bumped = false; }
   if (n.custom === 'pelle' && n.react && n.react.act === 'cheer' && t < n.react.until && !(t - (n.jumpAt || -9) < 0.8)) { n.jumpAt = t; }
@@ -796,6 +850,12 @@ W.startVisitor = () => {
   Object.assign(VIS, { on: true, x: -4.4, z: -9.35, phase: 'in', say: null, walkPh: 0, view: 'front', act: 'walk', flip: false, t0: clock.t, last: -1 });
   VIS.path = planPath(VIS, -1.85, -2.35); VIS.m.visible = true; return true;
 };
+// the rare song is playing: the visitor shows up, does his thing and then dances until the song ends
+W.visitorDance = (on) => {
+  VIS.wantDance = on;
+  if (on && !VIS.on && cur === hall) W.startVisitor();
+  return VIS.on;
+};
 W.visPhase = () => VIS.on ? VIS.phase : null;
 W.visitorSay = () => VIS.on && VIS.say ? { text: VIS.say, pos: W.project(VIS.m.localToWorld(V3(0, 1.84, 0))) } : null;   // top of his hair
 function updateVisitor(t, dt) {
@@ -816,13 +876,37 @@ function updateVisitor(t, dt) {
     VIS.view = ['side', 'back', 'side', 'front'][k]; VIS.flip = k === 0;
     if (ph > 2.4) { VIS.phase = 'bankee'; VIS.t0 = t; }
   }
-  else if (VIS.phase === 'bankee') { VIS.view = 'front'; VIS.act = 'cheer'; VIS.say = 'BANKEE-DEE'; if (ph > 2.3) { VIS.phase = 'out'; VIS.say = null; VIS.path = planPath(VIS, -4.4, -9.35); } }
+  else if (VIS.phase === 'bankee') { VIS.view = 'front'; VIS.act = 'cheer'; VIS.say = 'BANKEE-DEE'; if (ph > 2.3 && VIS.wantDance) { VIS.phase = 'dance'; VIS.say = null; Object.assign(VIS, { beat: 0, lastBeat: t, prevLvl: 0, baseX: VIS.x }); }
+    else if (ph > 2.3) { VIS.phase = 'out'; VIS.say = null; VIS.path = planPath(VIS, -4.4, -9.35); } }
+  else if (VIS.phase === 'dance') {
+    if (!VIS.wantDance) { VIS.phase = 'out'; VIS.x = VIS.baseX; VIS.path = planPath(VIS, -4.4, -9.35); VIS.emote = null; }
+    else {
+      // beats come from the music level (kick drum peaks); a steady 130 bpm if nothing is heard
+      const lv = (GS() && GS().musicLevel) || 0, since = t - VIS.lastBeat;
+      if ((lv > 0.22 && lv > VIS.prevLvl * 1.18 + 0.03 && since > 0.3) || since > 0.62) { VIS.beat++; VIS.period = clamp(since, 0.3, 0.62); VIS.lastBeat = t; }
+      VIS.prevLvl = lv;
+      const b = VIS.beat, move = Math.floor(b / 4) % 6, sub = b % 4;
+      VIS.view = 'front'; VIS.flip = false; VIS.x = VIS.baseX;
+      if (move === 0) VIS.act = sub & 1 ? 'hips' : 'idle';                                                // groove
+      else if (move === 1) VIS.act = sub & 1 ? 'cheer' : 'clap';                                          // hands up
+      else if (move === 2) { VIS.view = 'side'; VIS.flip = sub >= 2; VIS.act = 'walk'; VIS.walkPh = b * 0.5; VIS.x = VIS.baseX + (sub < 2 ? sub : 3 - sub) * 0.14 - 0.07; }   // side shuffle
+      else if (move === 3) { VIS.act = 'point'; VIS.flip = !!(sub & 1); }                                   // disco point
+      else if (move === 4) { VIS.view = ['front', 'side', 'back', 'side'][sub]; VIS.flip = sub === 3; VIS.act = 'idle'; }   // spin
+      else VIS.act = 'cheer';                                                                              // jump
+      VIS.emote = (b >> 3) & 1 ? 'note' : null;
+    }
+  }
   else if (VIS.phase === 'out') { if (walk()) { VIS.on = false; VIS.m.visible = false; return; } }
   VIS.m.position.set(VIS.x, 0, VIS.z);
+  if (VIS.phase === 'dance') {
+    const u = clamp((t - VIS.lastBeat) / (VIS.period || 0.46), 0, 1);
+    VIS.m.position.y = Math.max(0, Math.sin(u * Math.PI)) * 0.06 * (VIS.act === 'cheer' ? 1.8 : 1);
+    VIS.m.rotation.z = Math.sin((VIS.beat + u) * Math.PI) * 0.06;
+  } else { VIS.m.position.y = 0; VIS.m.rotation.z = 0; }
   VIS.m.rotation.y = Math.atan2(camera.position.x - VIS.x, camera.position.z - VIS.z);
   VIS.m.scale.x = VIS.view === 'side' && VIS.flip ? -1 : 1;
   const f = Math.floor(t * 12);
-  if (f !== VIS.last) { VIS.last = f; SPR().drawPerson(VIS.s, SPR().VISITOR, { view: VIS.view, act: VIS.act, t, frame: Math.floor(VIS.walkPh * 2), flip: VIS.flip }); VIS.m.userData.tex.needsUpdate = true; }
+  if (f !== VIS.last) { VIS.last = f; SPR().drawPerson(VIS.s, SPR().VISITOR, { view: VIS.view, act: VIS.act, t, frame: Math.floor(VIS.walkPh * 2), flip: VIS.flip, emote: VIS.phase === 'dance' ? VIS.emote : null }); VIS.m.userData.tex.needsUpdate = true; }
 }
 
 // ============================================================
@@ -1178,6 +1262,7 @@ function frameHall(t, dt, A) {
   C.dm.visible = !A.hideDoorman;
   C.dm.rotation.y = Math.atan2(camera.position.x - C.dm.position.x, camera.position.z - C.dm.position.z);
   C.rkPivot.rotation.y = Math.atan2(camera.position.x - C.rkPivot.position.x, camera.position.z - C.rkPivot.position.z) * 0.6;
+  updateTalk(t);
   for (const n of C.npcs) if (!n.custom || n.active) updateNPC(n, t, dt, camera.position);
   updateVisitor(t, dt);
   // floating labels

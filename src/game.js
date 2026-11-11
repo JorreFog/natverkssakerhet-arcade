@@ -23,7 +23,7 @@ const pick = a => a[Math.random() * a.length | 0];
 const pad = (n, l) => String(n).padStart(l || 2, '0');
 const fmtT = s => pad(Math.floor(s / 60)) + ':' + pad(Math.floor(s % 60));
 
-let SET = Object.assign({ diff: 'hard', sound: true, music: true, mvol: 0.55, crt: true, cam: true, name: '' }, LS.get('set', {}));
+let SET = Object.assign({ diff: 'hard', sound: true, music: true, mvol: 0.55, ambi: true, avol: 0.5, crt: true, cam: true, name: '' }, LS.get('set', {}));
 if (!DIFFS[SET.diff]) SET.diff = 'hard';
 const saveSet = () => LS.set('set', SET);
 
@@ -232,14 +232,14 @@ function throwOut() {
   }, 700);
   setTimeout(() => {
     if (G.mode !== 'cut') return;
-    A.charge = -1; PARTS.length = 0; A.outsideT0 = NOW; World.outside(true); MUSIC.outside(true);
+    A.charge = -1; PARTS.length = 0; A.outsideT0 = NOW; World.outside(true); MUSIC.outside(true); AMBI.outside(true);
     document.body.classList.add('outside'); $('#out-ui').classList.remove('on');
     SFX.out();
     setTimeout(() => { if (World.isOutside()) { $('#out-ui').classList.add('on'); SFX.sad(); } }, 2300);
   }, 2250);
 }
 function backInside() {
-  World.outside(false); MUSIC.outside(false); document.body.classList.remove('outside'); $('#out-ui').classList.remove('on');
+  World.outside(false); MUSIC.outside(false); AMBI.outside(false); document.body.classList.remove('outside'); $('#out-ui').classList.remove('on');
   A.hideDoorman = false; A.lvl = 0; A.screenOff = false; $('#screen').classList.remove('off');
   World.flash('#ffffff', 0.8); World.crowdEvent('reset', {});
   finish('out'); say('En chans till. Men plugga först.', false);
@@ -523,10 +523,11 @@ function showDiff() {
 function pickDiff(k) { if (!DIFFS[k]) return; SET.diff = k; saveSet(); startGame(); }
 function renderSettings() {
   const tg = (k, on, off) => `<button class="btn sm ${SET[k] ? 'sel' : ''}" data-tg="${k}">${SET[k] ? on : off}</button>`;
-  const vol = Math.round(SET.mvol * 10);
+  const vol = Math.round(SET.mvol * 10), avol = Math.round(SET.avol * 10);
   $('#v-settings').innerHTML = `<h2>INSTÄLLNINGAR</h2>
     <div class="note">Svårighetsgraden väljer du när du startar en runda. Rätt svar med ledtråd ger 50 poäng i stället för 100.</div>
     <div class="setrow"><span>Musik</span><div class="opts">${tg('music', 'PÅ', 'AV')}<button class="btn sm" data-vol="-1">−</button><span class="ps vol">${'■'.repeat(vol)}${'□'.repeat(10 - vol)}</span><button class="btn sm" data-vol="1">+</button></div></div>
+    <div class="setrow"><span>Miljöljud (maskiner, prat)</span><div class="opts">${tg('ambi', 'PÅ', 'AV')}<button class="btn sm" data-avol="-1">−</button><span class="ps vol">${'■'.repeat(avol)}${'□'.repeat(10 - avol)}</span><button class="btn sm" data-avol="1">+</button></div></div>
     <div class="setrow"><span>Ljudeffekter</span><div class="opts">${tg('sound', 'PÅ', 'AV')}</div></div>
     <div class="setrow"><span>CRT-effekt (scanlines)</span><div class="opts">${tg('crt', 'PÅ', 'AV')}</div></div>
     <div class="setrow"><span>Kamerarörelse</span><div class="opts">${tg('cam', 'PÅ', 'AV')}</div></div>
@@ -725,6 +726,9 @@ let lastF = 0, hoverCheck = 0, lastBlur = 0;
 function frame(ms) {
   const t = ms / 1000, dt = Math.min(0.05, Math.max(0, t - lastF)); lastF = t; NOW = t;
   A.musicLevel = MUSIC.level();
+  try { AMBI.update(World.audioScene()); } catch (e) { }
+  // the rare song: the Opensuse visitor comes in and dances until it ends
+  const rare = MUSIC.rarePlaying(); if (rare || A.dance) { World.visitorDance(rare); A.dance = rare; }
   // look around only when the pointer leaves the game screen; over the screen the view stays still
   let lx = 0, ly = 0; const r = SCR_RECT;
   if (SET.cam && !dlgOpen && !TS.on && r && mouse.cx >= 0) {
@@ -768,9 +772,9 @@ function boot() {
   try { World.init(document.getElementById('scene')); }
   catch (e) { document.body.insertAdjacentHTML('beforeend', '<div id="nogl">Spelet behöver WebGL. Prova en annan webbläsare eller slå på hårdvaruacceleration.<br><small>' + esc(e.message) + '</small></div>'); return; }
   layout(); addEventListener('resize', layout);
-  MUSIC.setVolume(SET.mvol); MUSIC.setEnabled(SET.music);
+  MUSIC.setVolume(SET.mvol); MUSIC.setEnabled(SET.music); AMBI.setVolume(SET.avol); AMBI.setEnabled(SET.ambi);
   addEventListener('mousemove', e => { if (KB.el && Math.abs(e.movementX) + Math.abs(e.movementY) > 6) kbClear(); mouse.x = e.clientX / innerWidth * 2 - 1; mouse.y = e.clientY / innerHeight * 2 - 1; mouse.cx = e.clientX; mouse.cy = e.clientY; });
-  const firstGesture = () => { audioCtx(); MUSIC.start(); removeEventListener('pointerdown', firstGesture); removeEventListener('keydown', firstGesture); };
+  const firstGesture = () => { audioCtx(); MUSIC.start(); AMBI.start(); removeEventListener('pointerdown', firstGesture); removeEventListener('keydown', firstGesture); };
   addEventListener('pointerdown', firstGesture); addEventListener('keydown', firstGesture);
   document.addEventListener('click', e => {
     const b = e.target.closest('button');
@@ -782,7 +786,8 @@ function boot() {
     if (b.dataset.c != null) { const c = dlgChoices[+b.dataset.c]; if (c) { SFX.click(); c.fn(); } return; }
     if (b.classList.contains('ans')) return answer(+b.dataset.k);
     if (b.dataset.pick) return pickDiff(b.dataset.pick);
-    if (b.dataset.tg) { SET[b.dataset.tg] = !SET[b.dataset.tg]; saveSet(); SFX.click(); if (b.dataset.tg === 'music') MUSIC.setEnabled(SET.music); renderSettings(); return hud(); }
+    if (b.dataset.tg) { SET[b.dataset.tg] = !SET[b.dataset.tg]; saveSet(); SFX.click(); if (b.dataset.tg === 'music') MUSIC.setEnabled(SET.music); if (b.dataset.tg === 'ambi') AMBI.setEnabled(SET.ambi); renderSettings(); return hud(); }
+    if (b.dataset.avol) { SET.avol = Math.max(0, Math.min(1, Math.round((SET.avol + 0.1 * +b.dataset.avol) * 10) / 10)); saveSet(); AMBI.setVolume(SET.avol); SFX.click(); return renderSettings(); }
     if (b.dataset.vol) { SET.mvol = Math.max(0, Math.min(1, Math.round((SET.mvol + 0.1 * +b.dataset.vol) * 10) / 10)); saveSet(); MUSIC.setVolume(SET.mvol); SFX.click(); return renderSettings(); }
     if (b.dataset.hsd) { HS.diff = b.dataset.hsd; SFX.click(); return renderScores(G.last && G.last.ts); }
     if (b.dataset.hs) { HS.tab = b.dataset.hs; SFX.click(); return openScores(G.last && G.last.ts); }
@@ -886,6 +891,7 @@ function testHook() {
     if (m[1] === 'save') { right(6); next(); talk(); payRick(); closeDlg(true); answer(G.order.indexOf(0)); finish('done'); saveScore(); }
     if (m[1] === 'outs') wrong(G.maxWrong);
     if (m[1] === 'visitor') { G.visitorAt = -1; World.startVisitor(); }
+    if (m[1] === 'nukem') { MUSIC.start(); MUSIC._test.playRare(); }
     const every = (ms, N, fn) => { let i = 0; const id = setInterval(() => { if (i++ >= N || G.mode !== 'play') return clearInterval(id); fn(); }, ms); };
     const step = (good) => { if (G.answered) next(); setTimeout(() => answer(good ? G.order.indexOf(0) : (G.order.indexOf(0) + 1) % 4), 500); };
     if (m[1] === 'laughdemo') every(2600, Math.min(G.maxWrong - 1, 9), () => step(false));

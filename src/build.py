@@ -3,6 +3,7 @@
 
 Kräver node_modules (npm install i src/) för three.js + esbuild.
 Musiken är en spellista: alla src/music/*.mp3 (blandas i spelet). Lägg till/ta bort filer och bygg om.
+En fil som heter NN.chanceX.mp3 är bara med i X % av varven genom spellistan (sällsynt låt).
 """
 import base64, glob, os, re, subprocess, sys
 
@@ -23,7 +24,10 @@ def safe(js):  # never let inline code close the <script> tag
     return js.replace("</script", "<\\/script")
 
 songs = sorted(glob.glob(os.path.join(here, "music", "*.mp3")))
-music = "".join(f'<script type="text/plain" class="music-b64">{b64(os.path.relpath(f, here))}</script>\n' for f in songs)
+def chance(f):  # "06.chance5.mp3" = only in 5 % of the rounds through the playlist; other songs are always in
+    m = re.search(r"\.chance(\d+)\.mp3$", f)
+    return int(m.group(1)) / 100 if m else 1
+music = "".join(f'<script type="text/plain" class="music-b64" data-chance="{chance(f)}">{b64(os.path.relpath(f, here))}</script>\n' for f in songs)
 html = rd("template.html")
 for key, val in (("__PS2P__", b64("fonts/ps2p.woff2")), ("__VT323__", b64("fonts/vt323.woff2")), ("__MUSIC__", music),
                  ("/*__BUNDLE__*/", safe(bundle)), ("/*__SPRITES__*/", safe(rd("sprites.js"))), ("/*__AUDIO__*/", safe(rd("audio.js"))),
