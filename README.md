@@ -37,7 +37,8 @@ Spelet är en enda fristående fil, `index.html`. Källorna ligger i `src/`:
 | `scene3d.js` | 3D-hallen (three.js) |
 | `sprites.js` | Pixelfigurerna |
 | `game.js` | Spellogiken |
-| `audio.js` | Musiken genom hallens högtalare |
+| `audio.js` | Musiken genom hallens högtalare (spellista i blandad ordning) |
+| `music/*.mp3` | Låtarna i hallen – lägg till eller ta bort filer och bygg om |
 | `template.html` | Sidan |
 
 Online-highscore: `highscore/` (kontroll av resultat, används av både worker och GitHub Action), `worker/` (Cloudflare Worker) och `.github/workflows/`.

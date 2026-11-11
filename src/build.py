@@ -2,7 +2,7 @@
 """Bygger den fristående spelfilen ../index.html (och en lokal kopia ../Natverkssakerhet-Arcade.html) av delarna i src/.
 
 Kräver node_modules (npm install i src/) för three.js + esbuild.
-Musiken läses från src/music.mp3 (byt fil och bygg om för en annan låt).
+Musiken är en spellista: alla src/music/*.mp3 (blandas i spelet). Lägg till/ta bort filer och bygg om.
 """
 import base64, glob, os, re, subprocess, sys
 
@@ -22,7 +22,8 @@ bundle = subprocess.run([esb, os.path.join(here, "scene3d.js"), "--bundle", "--f
 def safe(js):  # never let inline code close the <script> tag
     return js.replace("</script", "<\\/script")
 
-music = b64("music.mp3") if os.path.exists(os.path.join(here, "music.mp3")) else ""
+songs = sorted(glob.glob(os.path.join(here, "music", "*.mp3")))
+music = "".join(f'<script type="text/plain" class="music-b64">{b64(os.path.relpath(f, here))}</script>\n' for f in songs)
 html = rd("template.html")
 for key, val in (("__PS2P__", b64("fonts/ps2p.woff2")), ("__VT323__", b64("fonts/vt323.woff2")), ("__MUSIC__", music),
                  ("/*__BUNDLE__*/", safe(bundle)), ("/*__SPRITES__*/", safe(rd("sprites.js"))), ("/*__AUDIO__*/", safe(rd("audio.js"))),
@@ -32,4 +33,4 @@ for key, val in (("__PS2P__", b64("fonts/ps2p.woff2")), ("__VT323__", b64("fonts
 out = os.path.join(here, "..", "index.html")                      # GitHub Pages
 open(out, "w", encoding="utf8").write(html)
 open(os.path.join(here, "..", "Natverkssakerhet-Arcade.html"), "w", encoding="utf8").write(html)   # local copy (git-ignored)
-print(f"OK: {n} frågor, 3D-bundle {len(bundle)//1024} kB, musik {len(music)//1024} kB, totalt {len(html)//1024} kB -> {os.path.normpath(out)}")
+print(f"OK: {n} frågor, 3D-bundle {len(bundle)//1024} kB, musik {len(songs)} låtar {len(music)//1024} kB, totalt {len(html)//1024} kB -> {os.path.normpath(out)}")

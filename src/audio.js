@@ -11,6 +11,30 @@ function audioCtx() {
 }
 const MUSIC = (() => {
   let el = null, built = false, master, muffle, an, data, lvl = 0, vol = 0.55, enabled = true, duck = 1, outside = false, wanted = false;
+  // playlist: one <script class="music-b64"> per song (src/music/*.mp3), decoded only when it is about to play
+  let tracks = [], order = [], pos = 0;
+  function trackURL(i) {
+    const t = tracks[i];
+    if (!t.url) {
+      const bin = atob(t.node.textContent.trim()), u8 = new Uint8Array(bin.length);
+      for (let k = 0; k < bin.length; k++) u8[k] = bin.charCodeAt(k);
+      t.node.textContent = '';
+      t.url = URL.createObjectURL(new Blob([u8], { type: 'audio/mpeg' }));
+    }
+    return t.url;
+  }
+  function shuffled(n, avoidFirst) {
+    const a = [...Array(n).keys()];
+    for (let i = n - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+    if (n > 1 && a[0] === avoidFirst) [a[0], a[1]] = [a[1], a[0]];   // never the same song twice in a row
+    return a;
+  }
+  function nextTrack() {
+    const last = order[pos];
+    if (++pos >= order.length) { order = shuffled(tracks.length, last); pos = 0; }
+    el.src = trackURL(order[pos]);
+    if (wanted && enabled) { const p = el.play(); if (p && p.catch) p.catch(() => { }); }
+  }
   function roomIR(ac, secs) {
     const sr = ac.sampleRate, n = Math.floor(sr * secs), b = ac.createBuffer(2, n, sr);
     const early = [[0.011, 0.55], [0.019, 0.42], [0.027, 0.35], [0.041, 0.3], [0.053, 0.22], [0.067, 0.18], [0.083, 0.14]];
@@ -23,13 +47,12 @@ const MUSIC = (() => {
   }
   function build() {
     const ac = audioCtx(); if (!ac || built) return !!built;
-    const b64 = document.getElementById('music-b64');
-    if (!b64 || b64.textContent.length < 100) return false;
-    const bin = atob(b64.textContent.trim()), u8 = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
-    b64.textContent = '';
-    el = new Audio(); el.loop = true; el.preload = 'auto';
-    el.src = URL.createObjectURL(new Blob([u8], { type: 'audio/mpeg' }));
+    tracks = [...document.querySelectorAll('script.music-b64')].filter(n => n.textContent.length > 100).map(node => ({ node, url: null }));
+    if (!tracks.length) return false;
+    order = shuffled(tracks.length, -1); pos = 0;
+    el = new Audio(); el.loop = tracks.length === 1; el.preload = 'auto';
+    el.addEventListener('ended', nextTrack);
+    el.src = trackURL(order[0]);
     const src = ac.createMediaElementSource(el);
     // speaker voicing
     const hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 115; hp.Q.value = 0.8;
