@@ -42,6 +42,20 @@
   "ts": 1794328965103
  },
  {
+  "id": "mwe1dxosmwek5gt9",
+  "name": "GUSTAV",
+  "diff": "extreme",
+  "reason": "out",
+  "score": 6220,
+  "right": 44,
+  "wrong": 3,
+  "coins": 1,
+  "time": 1065,
+  "best": 40,
+  "date": "2026-11-12",
+  "ts": 1794517513122
+ },
+ {
   "id": "mwaz6p9w2fypq0qu",
   "name": "RICKARD",
   "diff": "hard",
