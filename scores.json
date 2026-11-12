@@ -70,6 +70,20 @@
   "ts": 1794394889479
  },
  {
+  "id": "mwdureihgclv2ufo",
+  "name": "JANET",
+  "diff": "hard",
+  "reason": "done",
+  "score": 5320,
+  "right": 42,
+  "wrong": 8,
+  "coins": 0,
+  "time": 2680,
+  "best": 14,
+  "date": "2026-11-12",
+  "ts": 1794506382351
+ },
+ {
   "id": "mwauixtznojm0a2i",
   "name": "JOAR",
   "diff": "easy",
