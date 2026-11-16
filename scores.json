@@ -84,6 +84,20 @@
   "ts": 1794328965103
  },
  {
+  "id": "mwj2x6lt7kivaa3z",
+  "name": "BOB",
+  "diff": "hard",
+  "reason": "done",
+  "score": 6510,
+  "right": 47,
+  "wrong": 3,
+  "coins": 0,
+  "time": 501,
+  "best": 21,
+  "date": "2026-11-16",
+  "ts": 1794822419679
+ },
+ {
   "id": "mwizx4m01lh57zlb",
   "name": "BOB",
   "diff": "hard",
