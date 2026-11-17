@@ -224,6 +224,20 @@
   "ts": 1794927590340
  },
  {
+  "id": "mwktnxnnkv9k7n6i",
+  "name": "JORRRRE",
+  "diff": "hard",
+  "reason": "done",
+  "score": 5520,
+  "right": 42,
+  "wrong": 8,
+  "coins": 0,
+  "time": 855,
+  "best": 14,
+  "date": "2026-11-17",
+  "ts": 1794927808134
+ },
+ {
   "id": "mwdureihgclv2ufo",
   "name": "JANET",
   "diff": "hard",
