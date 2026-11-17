@@ -210,6 +210,20 @@
   "ts": 1794394889479
  },
  {
+  "id": "mwktich0n2c0dqp4",
+  "name": "TIGER",
+  "diff": "easy",
+  "reason": "done",
+  "score": 5790,
+  "right": 45,
+  "wrong": 5,
+  "coins": 4,
+  "time": 1218,
+  "best": 14,
+  "date": "2026-11-17",
+  "ts": 1794927590340
+ },
+ {
   "id": "mwdureihgclv2ufo",
   "name": "JANET",
   "diff": "hard",
